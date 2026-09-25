@@ -493,6 +493,7 @@ summary:focus-visible {
 .review-history li > strong { text-transform: capitalize; }
 .review-history li > span, .review-history > p { color: var(--muted); font-size: 13px; }
 .review-history li > p { margin: 5px 0 0; font-size: 14px; }
+.contact-evidence-link { margin-top: 4px; color: var(--teal); font-size: 12px; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
 .section-intro { margin: -4px 0 22px !important; color: var(--muted); }
 .outlined-sources { display: grid; gap: 12px; }
 .outlined-sources a { min-height: 82px; padding: 15px 16px; border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-columns: 74px 1fr auto; gap: 16px; align-items: center; }
@@ -528,6 +529,41 @@ summary:focus-visible {
 .basket-empty svg { width: 32px; height: 32px; color: var(--teal); }
 .basket-empty strong { font-size: 16px; }
 .basket-empty span { max-width: 280px; color: var(--muted); font-size: 14px; }
+
+.review-workspace-shell main { max-width: 1320px; margin: 0 auto; padding: 42px 24px 90px; }
+.review-workspace-heading { display: flex; align-items: end; justify-content: space-between; gap: 28px; }
+.review-workspace-heading h1 { margin: 0; font-size: clamp(36px, 5vw, 58px); line-height: 1; letter-spacing: -.055em; }
+.review-workspace-heading p { max-width: 720px; margin: 16px 0 0; color: var(--muted); }
+.review-workspace-total { min-width: 190px; padding-left: 22px; border-left: 1px solid var(--line-dark); display: grid; }
+.review-workspace-total strong { font-size: 34px; line-height: 1; }
+.review-workspace-total span { margin-top: 6px; color: var(--muted); font-size: 13px; }
+.review-workspace-notice { margin: 26px 0 0; padding: 12px 15px; border-radius: 10px; background: var(--teal-soft); color: var(--green); font-size: 13px; }
+.review-workspace-section { margin-top: 46px; }
+.review-workspace-section-heading { margin-bottom: 16px; padding-bottom: 13px; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: end; gap: 20px; }
+.review-workspace-section-heading h2 { margin: 0; font-size: 23px; letter-spacing: -.035em; }
+.review-workspace-section-heading p { margin: 5px 0 0; color: var(--muted); font-size: 13px; }
+.review-workspace-section-heading > span { color: var(--muted); font-size: 13px; }
+.review-project-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.review-project-card { min-width: 0; padding: 22px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); box-shadow: var(--shadow-soft); }
+.review-project-heading { display: flex; justify-content: space-between; align-items: start; gap: 18px; }
+.review-project-heading > div > span { color: var(--teal); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.review-project-heading h3 { margin: 7px 0 0; font-size: 20px; line-height: 1.25; letter-spacing: -.025em; }
+.review-project-status { flex: none; padding: 6px 9px; border-radius: 999px; background: var(--paper); color: var(--muted); font-size: 11px; }
+.review-project-status.active { background: var(--teal-soft); color: var(--green); }
+.review-project-status.research { background: var(--blue); color: #355866; }
+.review-project-status.passed { background: var(--rose); color: #8b433e; }
+.review-project-status.saved { background: var(--amber); color: #755816; }
+.review-project-card > p { margin: 14px 0; color: var(--muted); font-size: 13px; }
+.review-project-card dl { margin: 18px 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.review-project-card dl > div { min-width: 0; padding: 10px; border-radius: 8px; background: var(--paper); }
+.review-project-card dt { color: var(--muted); font-size: 10px; text-transform: uppercase; }
+.review-project-card dd { margin: 4px 0 0; overflow: hidden; font-size: 12px; font-weight: 800; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
+.review-project-card .review-last-event { min-height: 22px; padding-top: 13px; border-top: 1px solid var(--line); font-size: 12px; }
+.review-project-card > a { color: var(--green); font-size: 13px; font-weight: 800; }
+.review-workspace-empty { padding: 20px; border: 1px dashed var(--line-dark); border-radius: 12px; color: var(--muted); font-size: 13px; }
+.review-workspace-empty-state { max-width: 720px; margin: 60px auto 0; padding: 48px; border: 1px solid var(--line); border-radius: 18px; background: var(--card); text-align: center; box-shadow: var(--shadow-soft); }
+.review-workspace-empty-state h2 { margin: 0; font-size: 28px; }
+.review-workspace-empty-state p { margin: 14px auto 22px; color: var(--muted); }
 
 .login-shell { min-height: 100vh; display: grid; grid-template-columns: 1.1fr .9fr; }
 .login-context { padding: clamp(30px, 6vw, 86px); background: var(--green); color: white; display: flex; flex-direction: column; justify-content: space-between; }
@@ -670,8 +706,10 @@ summary:focus-visible {
   .brand strong { display: none; }
   .site-header nav { gap: 2px; }
   .site-header nav > a { display: none; }
-  .job-board-shell .site-header nav > a[href^="/sources"] { display: flex; padding-inline: 7px; font-size: 12px; }
-  .sources-shell .site-header nav > a { display: flex; padding-inline: 7px; font-size: 12px; }
+  .job-board-shell .site-header nav > a[href^="/sources"],
+  .job-board-shell .site-header nav > a[href^="/reviewed"] { display: flex; padding-inline: 7px; font-size: 12px; }
+  .sources-shell .site-header nav > a,
+  .review-workspace-shell .site-header nav > a { display: flex; padding-inline: 7px; font-size: 12px; }
   .header-basket { padding-inline: 8px; font-size: 12px; }
   .header-basket svg { display: none; }
   .account-link { width: 38px; height: 38px; }
@@ -959,6 +997,7 @@ summary:focus-visible {
   .source-candidate-list { grid-template-columns: 1fr; }
   .approved-source-list article { grid-template-columns: 1fr; }
   .source-approval-section .candidate-grid { grid-template-columns: 1fr; }
+  .review-project-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 680px) {
@@ -987,4 +1026,10 @@ summary:focus-visible {
   .strategy-demo-fields label.wide, .automation-activity-timeline { grid-column: auto; }
   .source-approval-section .candidate-actions { grid-template-columns: 1fr; }
   .automation-outcome-card, .automation-activity-timeline { padding: 22px 18px; }
+  .review-workspace-shell main { padding: 28px 14px 70px; }
+  .review-workspace-heading { align-items: start; flex-direction: column; }
+  .review-workspace-total { min-width: 0; padding: 0; border: 0; }
+  .review-project-card dl { grid-template-columns: 1fr 1fr; }
+  .review-project-heading { flex-direction: column; }
+  .review-workspace-empty-state { margin-top: 36px; padding: 30px 20px; }
 }

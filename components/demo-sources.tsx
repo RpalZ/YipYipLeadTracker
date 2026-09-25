@@ -98,6 +98,7 @@ export function DemoSources() {
         <nav aria-label="Primary navigation">
           <Link href="/?demo=empty">Leads</Link>
           <Link href="/sources?demo=empty" aria-current="page">Source Network</Link>
+          <Link href="/reviewed?demo=empty">Reviewed</Link>
         </nav>
         <span className="demo-account" aria-label="Interactive demo workspace">Demo</span>
       </header>

@@ -530,7 +530,7 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
     const phase = stage.stage === "first_assessment" ? "initial" : "final";
     let findings: ResearchFindingOutput[] = [];
     if (phase === "final") {
-      const findingRows = await admin.from("research_findings").select("field,status,value,explanation,confidence,source_refs").eq("opportunity_id", workflow.opportunity_id);
+      const findingRows = await admin.from("research_findings").select("field,status,value,explanation,confidence,source_refs,created_at").eq("opportunity_id", workflow.opportunity_id).order("created_at", { ascending: false });
       if (findingRows.error) throw findingRows.error;
       findings = (findingRows.data ?? []).map((finding) => ({
         field: finding.field,

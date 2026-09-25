@@ -18,6 +18,11 @@ test("removes a lead without discarding unrelated query parameters", () => {
   assert.equal(buildLeadHref("/", "lead=lead-2", null), "/");
 });
 
+test("opens and closes a lead directly on the review tab", () => {
+  assert.equal(buildLeadHref("/", "demo=empty", "lead-2", "review"), "/?demo=empty&lead=lead-2&tab=review");
+  assert.equal(buildLeadHref("/", "lead=lead-2&tab=review", null), "/");
+});
+
 test("resolves only lead identifiers present in the dashboard data", () => {
   const ids = ["lead-1", "lead-2"];
   assert.equal(resolveLeadId("lead-2", ids), "lead-2");

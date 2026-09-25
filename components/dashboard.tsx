@@ -606,8 +606,12 @@ export function Dashboard({ data }: { data: DashboardData }) {
   const resetHandledRef = useRef(false);
   const interactiveDemo = data.mode === "demo" && data.demoMode === "empty";
   const opportunities = interactiveDemo ? demoState.opportunities : data.opportunities;
-  const basket = useReviewBasket(data.mode === "demo" ? `demo:${data.demoMode ?? "sample"}` : "supabase");
-  const basketIds = basket.ids;
+  const {
+    ids: basketIds,
+    toggle: toggleBasketItem,
+    remove: removeBasketItem,
+    clear: clearBasket,
+  } = useReviewBasket(data.mode === "demo" ? `demo:${data.demoMode ?? "sample"}` : "supabase");
 
   const leadIds = useMemo(() => opportunities.map((item) => item.id), [opportunities]);
   const requestedLeadId = searchParams.get("lead");
@@ -674,7 +678,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
   }, [panelOpen]);
 
   const toggleBasket = (id: string) => {
-    basket.toggle(id);
+    toggleBasketItem(id);
   };
 
   const openLead = useCallback((id: string, trigger?: HTMLElement | null) => {
@@ -700,8 +704,8 @@ export function Dashboard({ data }: { data: DashboardData }) {
 
   const completeReviewedLead = useCallback((id: string, action: string) => {
     if (action === "route_changed") return;
-    basket.remove(id);
-  }, [basket]);
+    removeBasketItem(id);
+  }, [removeBasketItem]);
 
   return (
     <div className="job-board-shell">
@@ -711,7 +715,7 @@ export function Dashboard({ data }: { data: DashboardData }) {
         </a>
         <nav aria-label="Primary navigation">
           <a href="#projects" aria-current="page">Leads</a>
-          <Link href={interactiveDemo ? "/sources?demo=empty" : "/sources"}>Source Network</Link>
+          <Link href={data.mode === "demo" ? "/sources?demo=empty" : "/sources"}>Source Network</Link>
           <Link href={interactiveDemo ? "/reviewed?demo=empty" : data.mode === "demo" ? "/reviewed?demo=sample" : "/reviewed"}>Reviewed</Link>
           <button type="button" className="header-basket" onClick={(event) => openBasket(event.currentTarget)} aria-haspopup="dialog">
             <Icon name="basket" />
@@ -812,8 +816,8 @@ export function Dashboard({ data }: { data: DashboardData }) {
         <BasketDrawer
           items={basketItems}
           onSelect={(id, trigger) => openLead(id, trigger)}
-          onRemove={basket.remove}
-          onClear={basket.clear}
+          onRemove={removeBasketItem}
+          onClear={clearBasket}
           onReview={openReviewWorkspace}
           onClose={() => setBasketOpen(false)}
         />

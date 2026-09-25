@@ -127,14 +127,24 @@ test("citation-backed contact routes qualify while bounded unknowns need attenti
   assert.equal(supported.supported, true);
   assert.equal(supported.label, "Team Inkoop via the official tender portal");
 
-  const unresolved = resolveActionableContactRoute(opportunity, [{
-    field: ACTIONABLE_CONTACT_ROUTE_FIELD,
-    status: "unknown",
-    value: null,
-    explanation: "No public route was found.",
-    confidence: 0,
-    sourceUrls: [],
-  }]);
+  const unresolved = resolveActionableContactRoute(opportunity, [
+    {
+      field: ACTIONABLE_CONTACT_ROUTE_FIELD,
+      status: "unknown",
+      value: null,
+      explanation: "The latest bounded pass found no public route.",
+      confidence: 0,
+      sourceUrls: [],
+    },
+    {
+      field: ACTIONABLE_CONTACT_ROUTE_FIELD,
+      status: "confirmed",
+      value: "An older contact route",
+      explanation: "Historical evidence.",
+      confidence: 0.95,
+      sourceUrls: ["https://example.nl/old-contact"],
+    },
+  ]);
   const result = routeAssessment(assessment(8.8), "final", false, undefined, unresolved);
   assert.equal(result.lifecycleStatus, "needs_review");
   assert.equal(result.exceptionKind, "contact_route_unresolved");

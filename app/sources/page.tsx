@@ -28,7 +28,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
     <div className="sources-shell">
       <header className="site-header">
         <Link className="brand" href="/" aria-label="YipYip project board home"><span>YY</span><strong>early_signal</strong></Link>
-        <nav aria-label="Primary navigation"><Link href="/">Leads</Link><Link href="/sources" aria-current="page">Source Network</Link></nav>
+        <nav aria-label="Primary navigation"><Link href="/">Leads</Link><Link href="/sources" aria-current="page">Source Network</Link><Link href="/reviewed">Reviewed</Link></nav>
         <a className="account-link" href="/login">YK</a>
       </header>
 

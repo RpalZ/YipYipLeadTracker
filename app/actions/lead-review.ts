@@ -54,6 +54,7 @@ export async function reviewLeadAction(
       : {};
     revalidatePath("/");
     revalidatePath("/sources");
+    revalidatePath("/reviewed");
     return {
       ok: true,
       message: action === "pursue"

@@ -80,14 +80,19 @@ export function resolveActionableContactRoute(
     };
   }
 
-  const supported = findings
-    .filter((finding) => isContactRouteField(finding.field))
-    .filter((finding) => ["confirmed", "strongly_inferred"].includes(finding.status))
-    .filter((finding) => typeof finding.value === "string" && finding.value.trim().length > 0)
-    .filter((finding) => finding.confidence >= 0.65 && finding.sourceUrls.length > 0)
-    .sort((left, right) => right.confidence - left.confidence)[0];
+  // Callers provide findings newest first. The latest bounded attempt is
+  // authoritative so an older optimistic answer cannot override a newer
+  // unknown or contradiction.
+  const supported = findings.find((finding) => isContactRouteField(finding.field));
 
-  if (!supported) {
+  if (
+    !supported
+    || !["confirmed", "strongly_inferred"].includes(supported.status)
+    || typeof supported.value !== "string"
+    || !supported.value.trim()
+    || supported.confidence < 0.65
+    || supported.sourceUrls.length === 0
+  ) {
     return { supported: false, label: null, status: "unknown", confidence: 0, sourceUrls: [] };
   }
   return {
