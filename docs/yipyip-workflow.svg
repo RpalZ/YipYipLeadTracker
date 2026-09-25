@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1260" viewBox="0 0 1920 1260" role="img" aria-labelledby="workflow-title workflow-desc">
+  <title id="workflow-title">YipYip signal-to-lead and review workflow</title>
+  <desc id="workflow-desc">Two lanes show finished Lead review and the autonomous workflow from an editable Lead Strategy through Source Scout, one-time source approval, recurring monitoring, validation, assessment, focused research, automatic qualification, and exception routing.</desc>
+  <defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#18312d"/></marker><marker id="arrowhead-planned" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#9a6700"/></marker></defs>
+  <rect width="1920" height="1260" fill="#fbfaf5"/>
+  <rect x="35" y="155" width="1850" height="420" rx="18" fill="#f5f6f1" stroke="#c7cfcc"/>
+  <rect x="35" y="615" width="1850" height="405" rx="18" fill="#f5f6f1" stroke="#c7cfcc"/>
+  <path d="M250 291 L290 291" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M495 291 L535 291" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M795 291 L835 291" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1045 291 L1085 291" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1360 291 L1400 291" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1590 291 L1630 291" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1732 360 L1732 425" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1222 382 L1222 402 L390 402 L390 337" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M270 746 L310 746" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M520 746 L560 746" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M770 746 L810 746" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1020 746 L1060 746" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1270 746 L1310 746" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1530 746 L1570 746" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1685 802 L1685 865" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1570 921 L1530 921" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1310 921 L1270 921" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M1060 921 L1020 921" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M810 921 L770 921" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M560 921 L520 921" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M560 946 L520 1010 L165 1010 L165 977" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <path d="M310 921 L25 921 L25 291 L70 291" fill="none" stroke="#18312d" stroke-width="2.5"  marker-end="url(#arrowhead)"/>
+  <rect x="70" y="245" width="180" height="92" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="160" y="280.375" text-anchor="middle" fill="#18312d" font-size="17" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="160" dy="0">Open qualified</tspan><tspan x="160" dy="21.25">Lead gallery</tspan></text>
+  <rect x="290" y="245" width="205" height="92" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="392.5" y="282.25" text-anchor="middle" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="392.5" dy="0">Qualified · Monitoring</tspan><tspan x="392.5" dy="17.5">Needs attention</tspan></text>
+  <rect x="535" y="222" width="260" height="138" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="665" y="269.75" text-anchor="middle" fill="#18312d" font-size="17" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="665" dy="0">Scan each card</tspan><tspan x="665" dy="21.25">WHAT · WHY · BUDGET</tspan><tspan x="665" dy="21.25">WHERE · WHO · SOURCES</tspan></text>
+  <rect x="835" y="245" width="210" height="92" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="940" y="280.375" text-anchor="middle" fill="#18312d" font-size="17" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="940" dy="0">Click a lead</tspan><tspan x="940" dy="21.25">push ?lead=&lt;id&gt;</tspan></text>
+  <rect x="1085" y="222" width="275" height="138" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1222.5" y="269.75" text-anchor="middle" fill="#18312d" font-size="17" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1222.5" dy="0">Artifact-style drawer</tspan><tspan x="1222.5" dy="21.25">Overview · Evaluation</tspan><tspan x="1222.5" dy="21.25">Sources · Review</tspan></text>
+  <rect x="1400" y="245" width="190" height="92" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1495" y="280.375" text-anchor="middle" fill="#18312d" font-size="17" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1495" dy="0">Add to</tspan><tspan x="1495" dy="21.25">review basket</tspan></text>
+  <rect x="1630" y="222" width="205" height="138" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1732.5" y="259.125" text-anchor="middle" fill="#18312d" font-size="17" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1732.5" dy="0">Basket drawer</tspan><tspan x="1732.5" dy="21.25">review saved leads</tspan><tspan x="1732.5" dy="21.25">remove · clear</tspan><tspan x="1732.5" dy="21.25">(session only)</tspan></text>
+  <rect x="1630" y="425" width="205" height="86" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1732.5" y="451.75" text-anchor="middle" fill="#18312d" font-size="13" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1732.5" dy="0">Persistent review</tspan><tspan x="1732.5" dy="16.25">pursue · pass · research</tspan><tspan x="1732.5" dy="16.25">route + history</tspan></text>
+  <rect x="60" y="690" width="210" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="165" y="736.625" text-anchor="middle" fill="#18312d" font-size="15" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="165" dy="0">Editable Lead Strategy</tspan><tspan x="165" dy="18.75">save / version</tspan></text>
+  <rect x="310" y="690" width="210" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="415" y="727.25" text-anchor="middle" fill="#18312d" font-size="15" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="415" dy="0">Source Scout</tspan><tspan x="415" dy="18.75">proposes reputable</tspan><tspan x="415" dy="18.75">sources</tspan></text>
+  <rect x="560" y="690" width="210" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="665" y="736.625" text-anchor="middle" fill="#18312d" font-size="15" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="665" dy="0">ONE-TIME GATE</tspan><tspan x="665" dy="18.75">approve each source</tspan></text>
+  <rect x="810" y="690" width="210" height="112" rx="12" fill="#e5efff" stroke="#35618e" stroke-width="2.5" />
+  <text x="915" y="728.5" text-anchor="middle" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="915" dy="0">Weekday monitor</tspan><tspan x="915" dy="17.5">07:00 local · leases</tspan><tspan x="915" dy="17.5">Cron activation pending</tspan></text>
+  <rect x="1060" y="690" width="210" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1165" y="736.625" text-anchor="middle" fill="#18312d" font-size="15" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1165" dy="0">Source Monitor</tspan><tspan x="1165" dy="18.75">bounded web search</tspan></text>
+  <rect x="1310" y="690" width="220" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1420" y="737.25" text-anchor="middle" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1420" dy="0">Normalize + validate</tspan><tspan x="1420" dy="17.5">citations · dates · dedupe</tspan></text>
+  <rect x="1570" y="690" width="230" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1685" y="728.5" text-anchor="middle" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1685" dy="0">Exact resolver</tspan><tspan x="1685" dy="17.5">Signal + Organization</tspan><tspan x="1685" dy="17.5">+ Opportunity</tspan></text>
+  <rect x="1570" y="865" width="230" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1685" y="911.625" text-anchor="middle" fill="#18312d" font-size="15" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1685" dy="0">First Assessor</tspan><tspan x="1685" dy="18.75">application scoring</tspan></text>
+  <rect x="1310" y="865" width="220" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1420" y="903.5" text-anchor="middle" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1420" dy="0">Gap Analyst</tspan><tspan x="1420" dy="17.5">decision-relevant</tspan><tspan x="1420" dy="17.5">questions only</tspan></text>
+  <rect x="1060" y="865" width="210" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="1165" y="912.25" text-anchor="middle" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1165" dy="0">Research Agent</tspan><tspan x="1165" dy="17.5">bounded · unknown OK</tspan></text>
+  <rect x="810" y="865" width="210" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="915" y="911.625" text-anchor="middle" fill="#18312d" font-size="15" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="915" dy="0">Final Assessor</tspan><tspan x="915" dy="18.75">complete evidence</tspan></text>
+  <rect x="560" y="865" width="210" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="665" y="903.5" text-anchor="middle" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="665" dy="0">Deterministic Router</tspan><tspan x="665" dy="17.5">reject · monitor</tspan><tspan x="665" dy="17.5">qualify · exception</tspan></text>
+  <rect x="310" y="865" width="210" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="415" y="911.625" text-anchor="middle" fill="#18312d" font-size="15" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="415" dy="0">Qualified Lead</tspan><tspan x="415" dy="18.75">appears automatically</tspan></text>
+  <rect x="60" y="865" width="210" height="112" rx="12" fill="#e2f4df" stroke="#1f6b55" stroke-width="2.5" />
+  <text x="165" y="911.625" text-anchor="middle" fill="#18312d" font-size="15" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="165" dy="0">Needs attention</tspan><tspan x="165" dy="18.75">genuine exceptions</tspan></text>
+  <rect x="70" y="1100" width="1215" height="120" rx="14" fill="#e5efff" stroke="#35618e" stroke-width="2.5"/>
+  <rect x="1330" y="1100" width="520" height="120" rx="14" fill="#fff0c2" stroke="#9a6700" stroke-width="2.5" stroke-dasharray="9 8"/>
+  <text x="45" y="52" text-anchor="start" fill="#18312d" font-size="30" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="700"><tspan x="45" dy="0">YipYip — signal-to-lead and review workflow</tspan></text>
+  <text x="45" y="92" text-anchor="start" fill="#60716d" font-size="16" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="45" dy="0">Lead Strategy → source approval once → recurring autonomous qualification → human review</tspan></text>
+  <text x="60" y="186" text-anchor="start" fill="#1f6b55" font-size="19" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="700"><tspan x="60" dy="0">A · OPERATOR REVIEW FLOW — WORKS NOW</tspan></text>
+  <text x="60" y="647" text-anchor="start" fill="#1f6b55" font-size="19" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="700"><tspan x="60" dy="0">B · AUTONOMOUS SOURCE-TO-LEAD PIPELINE — IMPLEMENTED VERTICAL SLICE</tspan></text>
+  <text x="1585" y="394" fill="#60716d" font-size="13" font-family="JetBrains Mono, ui-monospace, monospace">atomic + version checked</text>
+  <text x="720" y="389" fill="#60716d" font-size="13" font-family="JetBrains Mono, ui-monospace, monospace">Back · Close · Escape · backdrop</text>
+  <text x="335" y="996" fill="#60716d" font-size="13" font-family="JetBrains Mono, ui-monospace, monospace">exception</text>
+  <text x="45" y="586" fill="#60716d" font-size="13" font-family="JetBrains Mono, ui-monospace, monospace">automatic qualified Lead</text>
+  <text x="92" y="1127.5" text-anchor="start" fill="#35618e" font-size="17" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="92" dy="0">SUPABASE DURABLE DATA PLANE</tspan></text>
+  <text x="92" y="1166.625" text-anchor="start" fill="#18312d" font-size="15" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="92" dy="0">Auth + workspaces + RLS  |  Lead Strategy + sources  |  workflows + stages + health events</tspan><tspan x="92" dy="18.75">signals + opportunities + commercial snapshots + versioned leads + review events</tspan></text>
+  <text x="1352" y="1127.5" text-anchor="start" fill="#1f6b55" font-size="17" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1352" dy="0">BOUNDED CONTROLS — IMPLEMENTED</tspan></text>
+  <text x="1352" y="1167.25" text-anchor="start" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace" font-weight="500"><tspan x="1352" dy="0">Idempotency · stage leases · retries · time/cost limits</tspan><tspan x="1352" dy="17.5">server-only secrets · hosted Cron activation pending</tspan></text>
+  <rect x="1372" y="48" width="26" height="22" rx="4" fill="#e2f4df" stroke="#1f6b55"/><text x="1407" y="65" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace">Verified now</text>
+  <rect x="1530" y="48" width="26" height="22" rx="4" fill="#e5efff" stroke="#35618e"/><text x="1565" y="65" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace">Contract exists</text>
+  <rect x="1710" y="48" width="26" height="22" rx="4" fill="#fff0c2" stroke="#9a6700" stroke-dasharray="5 4"/><text x="1745" y="65" fill="#18312d" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace">Planned</text>
+</svg>

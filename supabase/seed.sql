@@ -1,0 +1,3 @@
+-- Deliberately empty. Demo records live in lib/demo-data.ts so local startup does
+-- not depend on creating synthetic auth users. Add workspace-specific fixtures
+-- only after the corresponding auth identities exist.
