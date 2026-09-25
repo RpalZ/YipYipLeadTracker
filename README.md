@@ -15,9 +15,11 @@ The product contract is [PRD.md](./PRD.md). The editable workflow is [docs/yipyi
 - Protected server worker at `/api/internal/automation/tick`, service-only dispatch/lease/completion RPCs, one stage per invocation, expired-lease recovery, and bounded retries.
 - Authenticated operator runner at `/api/automation/run` with a sticky, polled current-stage display, elapsed time, queue counts, explicit web-search activity, safe expired-lease recovery, idempotent per-source **Queue live monitor**, and reviewer **Research missing info** controls for qualification exceptions.
 - Specialized bounded Source Scout, monitor, assessor, gap-analysis, and research agents. Deterministic application code owns validation, score calculation, routing, and source health.
+- Deterministic contact-access gate: application code injects bounded research for a named person, responsible team, procurement desk, or official tender channel; citation-backed routes are shown in the Lead and unresolved routes enter Needs attention.
 - Exact Signal/Organization/Opportunity resolution, automated initial/final Assessments, decision-relevant Research Questions/Findings, automatic qualified Lead creation, and Needs-attention exceptions.
 - Commercial-fit policy `2026-09-24.2` separates total procurement value from YipYip-addressable scope, enforces budget/delivery evidence gates, and uses editable €30k minimum, €50k–€100k preferred, and €250k review defaults.
 - Persistent Lead Review tab with version-checked Pursue, Pass, Request research, and route-change actions; immutable events, stable reasons, role enforcement, and sequential Lead versions. Demo decisions remain session-only and visibly simulated.
+- Dedicated `/reviewed` pursuit workspace for saved, actively pursued, research-pending, and passed projects. The basket remains session-only; Supabase Lead state and review history remain persistent.
 - Workspace RLS, explicit grants, same-workspace references, immutable provenance/health events, generated Supabase types, and transactional SQL acceptance suites.
 - Browser-local deterministic demo of the full workflow. It uses Motion transitions with reduced-motion support and never contacts Supabase or OpenAI.
 

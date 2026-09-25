@@ -1,0 +1,6 @@
+interface:
+  display_name: "YipYip Lead Review Frontend"
+  short_description: "Build the accessible lead-review workspace"
+  default_prompt: "Use $yipyip-lead-review-frontend to build or review this lead interface change."
+policy:
+  allow_implicit_invocation: true

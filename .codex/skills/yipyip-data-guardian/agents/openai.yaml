@@ -1,0 +1,6 @@
+interface:
+  display_name: "YipYip Data Guardian"
+  short_description: "Protect Supabase data and provenance integrity"
+  default_prompt: "Use $yipyip-data-guardian to design or verify this YipYip data change."
+policy:
+  allow_implicit_invocation: true

@@ -1,10 +1,10 @@
 # YipYip Project Context
 
-Last updated: 24 September 2026
+Last updated: 25 September 2026
 
 ## Product
 
-YipYip is an autonomous lead engine. A workspace configures one editable Lead Strategy, approves reputable sources once, and then receives automatically discovered, assessed, researched, and qualified Leads. Humans review finished Leads and genuine exceptions—not routine assessment steps. `PRD.md` version 1.8 is the product source of truth.
+YipYip is an autonomous lead engine. A workspace configures one editable Lead Strategy, approves reputable sources once, and then receives automatically discovered, assessed, researched, and qualified Leads. Humans review finished Leads and genuine exceptions—not routine assessment steps. `PRD.md` version 1.9 is the product source of truth.
 
 ## Implemented
 
@@ -26,7 +26,8 @@ YipYip is an autonomous lead engine. A workspace configures one editable Lead St
 - Exact Organization/Opportunity resolution, immutable Signals, automated Assessments with null `assessed_by`, Research Questions/Findings, automatic review-ready Leads, and explicit qualification exceptions.
 - Commercial-fit scoring policy `2026-09-24.2`: weights total 100%; Budget and Delivery require 6/10 at 0.65 confidence; €30k minimum, €50k–€100k preferred, and €250k review defaults are editable in Lead Strategy. Assessments persist total value separately from YipYip-addressable value, evidence status/references, scope boundary, and explanation. Unsupported commercial claims are downgraded deterministically; unresolved final unknowns enter Needs attention.
 - `20260924171140_commercial_fit_lead_review.sql` plus forward fixes: strategy budget fields, immutable strategy-specific policy snapshots, Assessment commercial snapshots, sequential Lead versions, downward-only monitor smoke overrides, and an atomic role-scoped `review_lead` RPC with idempotency and stale-version protection.
-- Lead drawer Review tab with Pursue, Pass, Request research, and route change; stable reasons, immutable history, role-aware controls, accessible pending/results, and session-basket sequencing. The browser demo stores simulated decisions only in `sessionStorage`.
+- Lead drawer Review tab with Pursue, Pass, Request research, and route change; stable reasons, immutable history, role-aware controls, and accessible pending/results. The session basket opens the dedicated `/reviewed` pursuit workspace, which groups saved, working, research-pending, and passed projects. Demo state remains in `sessionStorage`.
+- Deterministic contact-route policy injects a high-impact research question when no confirmed route exists. Citation-backed named-person, responsible-team, procurement-desk, or tender-channel findings are projected into the Lead; a bounded unknown becomes a `contact_route_unresolved` exception instead of a qualified Lead.
 - Deterministic monitor health from terminal telemetry with immutable health events. Reputation expresses trust/relevance; health expresses execution reliability.
 - Explicit grants/RLS, owner/operator strategy/source controls, reviewer exception visibility/resolution, viewer read-only access, service-only worker RPCs, generated Supabase types, and three transactional SQL suites.
 - Motion 13 for restrained state transitions with user reduced-motion behavior; project-local Motion AI Kit is installed.
@@ -44,7 +45,7 @@ YipYip is an autonomous lead engine. A workspace configures one editable Lead St
 - `app/api/automation/run/route.ts`: same-origin authenticated owner/operator POST entry point that drains one workspace queue one durable stage per request, plus an authenticated GET status surface for the current leased stage and queued counts; it does not require the hosted-Cron URL or bearer secret.
 - `components/source-actions.tsx` and `lib/automation/operator-progress.ts`: sticky live-run feedback backed by durable-stage polling, friendly stage explanations, elapsed time, completed/queued counts, explicit web-search state, persisted attempt failures, scheduled retry time, stale-lease recovery guidance, accessible announcements, and reduced-motion behavior.
 - `lib/scoring.ts`, `lib/automation/pipeline.ts`, and `lib/automation/worker.ts`: deterministic commercial curve, minimum dimension gates, evidence-reference validation, focused unknown-budget research, immutable policy lookup, commercial snapshot persistence, final routing, and sequential qualified-Lead creation.
-- `app/actions/lead-review.ts`, `components/dashboard.tsx`, and `lib/data/opportunities.ts`: authenticated Lead review actions, commercial-fit presentation, batched history/capability loading, demo isolation, and sequential basket review.
+- `app/actions/lead-review.ts`, `components/dashboard.tsx`, `components/review-workspace.tsx`, and `lib/data/opportunities.ts`: authenticated Lead review actions, contact/commercial-fit presentation, batched history/capability loading, session shortlist, and the dedicated pursuit workspace.
 - Legacy `lib/discovery/*` and manual discovery tables remain for compatible source-monitor execution and historical provenance. Query Packs and Coverage Profiles are not presented as user-facing concepts.
 - `supabase/migrations/`: imperative schema. The autonomous migration preserves legacy identifiers/history, adds scheduling and durable orchestration, and does not activate hosted Cron.
 - `supabase/tests/autonomous_lead_workflow.sql`: Lead Strategy roles, source approval, source/job creation, tenant isolation, service-only claims, lease expiry, dispatch idempotency, and DST scheduling.
@@ -57,6 +58,7 @@ YipYip is an autonomous lead engine. A workspace configures one editable Lead St
 - One protected invocation performs one bounded stage so workflows remain resumable and request-duration safe.
 - Exact deterministic entity matching is automatic. Ambiguous/probabilistic matches go to Needs attention.
 - Qualified Opportunities automatically create review-ready Leads. Rejected and in-progress Opportunities stay in operational history and do not clutter the default gallery.
+- Automatic qualification requires a supported actionable contact route; inferred labels trigger bounded research and terminal unknowns route to Needs attention.
 - Internal Search Plan snapshots retain query reproducibility; users never manage Query Packs.
 - Live automation and Cron default off. No deployment, billable agent run, outreach, or delivery action occurs without explicit authorization.
 
@@ -69,7 +71,7 @@ YipYip is an autonomous lead engine. A workspace configures one editable Lead St
 - Source Monitor currently uses the hosted web-search path scoped to an approved source; source-specific feed/API adapters remain future work.
 - Entity resolution is exact only. Persistent pursuit/pass/research/route review is implemented; field correction, merge/split review UI, delivery/export, CRM, outreach, and proposal generation remain future.
 - The public demo is deterministic `sessionStorage`, not live research or an authenticated demo account.
-- Basket contents remain client-session only.
+- Basket contents remain client-session only; `/reviewed` combines that shortlist with persistent Lead/review state but does not make the shortlist itself durable.
 
 ## Safest next work
 

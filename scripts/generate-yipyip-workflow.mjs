@@ -26,7 +26,7 @@ const nodes = [
   { id: "select", x: 835, y: 245, w: 210, h: 92, label: "Click a lead\npush ?lead=<id>", state: "verified" },
   { id: "drawer", x: 1085, y: 222, w: 275, h: 138, label: "Artifact-style drawer\nOverview · Evaluation\nSources · Review", state: "verified" },
   { id: "basket-add", x: 1400, y: 245, w: 190, h: 92, label: "Add to\nreview basket", state: "verified" },
-  { id: "basket", x: 1630, y: 222, w: 205, h: 138, label: "Basket drawer\nreview saved leads\nremove · clear\n(session only)", state: "verified" },
+  { id: "basket", x: 1630, y: 222, w: 205, h: 138, label: "Pursuit workspace\n/reviewed\nsaved · working\nresearch · passed", state: "verified", fontSize: 14 },
   { id: "review-mutation", x: 1630, y: 425, w: 205, h: 86, label: "Persistent review\npursue · pass · research\nroute + history", state: "verified", fontSize: 13 },
 
   { id: "strategy", x: 60, y: 690, w: 210, h: 112, label: "Editable Lead Strategy\nsave / version", state: "verified", fontSize: 15 },
@@ -38,10 +38,10 @@ const nodes = [
   { id: "resolve", x: 1570, y: 690, w: 230, h: 112, label: "Exact resolver\nSignal + Organization\n+ Opportunity", state: "verified", fontSize: 14 },
 
   { id: "assess", x: 1570, y: 865, w: 230, h: 112, label: "First Assessor\napplication scoring", state: "verified", fontSize: 15 },
-  { id: "gaps", x: 1310, y: 865, w: 220, h: 112, label: "Gap Analyst\ndecision-relevant\nquestions only", state: "verified", fontSize: 14 },
-  { id: "research", x: 1060, y: 865, w: 210, h: 112, label: "Research Agent\nbounded · unknown OK", state: "verified", fontSize: 14 },
+  { id: "gaps", x: 1310, y: 865, w: 220, h: 112, label: "Gap Analyst\n+ mandatory contact\nroute question", state: "verified", fontSize: 14 },
+  { id: "research", x: 1060, y: 865, w: 210, h: 112, label: "Research Agent\ncontact + material gaps\nbounded · unknown OK", state: "verified", fontSize: 13 },
   { id: "final", x: 810, y: 865, w: 210, h: 112, label: "Final Assessor\ncomplete evidence", state: "verified", fontSize: 15 },
-  { id: "router", x: 560, y: 865, w: 210, h: 112, label: "Deterministic Router\nreject · monitor\nqualify · exception", state: "verified", fontSize: 14 },
+  { id: "router", x: 560, y: 865, w: 210, h: 112, label: "Deterministic Router\ncontact gate · score\nqualify · exception", state: "verified", fontSize: 14 },
   { id: "qualified", x: 310, y: 865, w: 210, h: 112, label: "Qualified Lead\nappears automatically", state: "verified", fontSize: 15 },
   { id: "attention", x: 60, y: 865, w: 210, h: 112, label: "Needs attention\ngenuine exceptions", state: "verified", fontSize: 15 },
 ];

@@ -1,0 +1,6 @@
+interface:
+  display_name: "YipYip Assessment Research"
+  short_description: "Build explainable scoring and bounded research"
+  default_prompt: "Use $yipyip-assessment-research to implement or audit this qualification workflow."
+policy:
+  allow_implicit_invocation: true

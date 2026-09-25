@@ -114,6 +114,12 @@ test("application policy always researches an inferred or missing contact route"
   assert.equal(questions[0].decisionImpact, "high");
 });
 
+test("contact research is not spent on opportunities that already fail the score threshold", () => {
+  const result = routeAssessment(assessment(3), "initial");
+  assert.equal(result.lifecycleStatus, "rejected");
+  assert.equal(result.nextStage, null);
+});
+
 test("citation-backed contact routes qualify while bounded unknowns need attention", () => {
   const opportunity = { contactLabel: "Contact research pending", contactStatus: "unknown" as const };
   const supported = resolveActionableContactRoute(opportunity, [{

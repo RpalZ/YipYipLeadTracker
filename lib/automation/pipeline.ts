@@ -43,8 +43,9 @@ export function prioritizeGaps(questions: GapQuestion[]): GapQuestion[] {
 
 function isContactRouteField(field: string): boolean {
   const normalized = normalizedField(field);
+  const words = normalized.replace(/[^a-z0-9]+/g, " ").trim();
   return normalized === ACTIONABLE_CONTACT_ROUTE_FIELD
-    || /(^|\s)(contact|commissioning owner|procurement desk|tender channel|commercial access)(\s|$)/.test(normalized);
+    || /(^|\s)(contact|commissioning owner|procurement desk|tender channel|tender access|commercial access)(\s|$)/.test(words);
 }
 
 export function ensureRequiredResearchQuestions(
@@ -209,6 +210,9 @@ export function routeAssessment(
   if (hardExclusion) {
     return { score, dimensions, nextStage: null, lifecycleStatus: "rejected", exceptionKind: null };
   }
+  if (score.decision === "reject") {
+    return { score, dimensions, nextStage: null, lifecycleStatus: "rejected", exceptionKind: null };
+  }
   if (phase === "initial" && (score.decision === "research" || hasMaterialGaps || missingMinimum || commercialUnknown || unresolvedLargeTotal || !contactRoute.supported)) {
     return { score, dimensions, nextStage: "gap_analysis", lifecycleStatus: "needs_research", exceptionKind: null };
   }
@@ -220,9 +224,6 @@ export function routeAssessment(
   }
   if (phase === "final" && !contactRoute.supported) {
     return { score, dimensions, nextStage: null, lifecycleStatus: "needs_review", exceptionKind: "contact_route_unresolved" };
-  }
-  if (score.decision === "reject") {
-    return { score, dimensions, nextStage: null, lifecycleStatus: "rejected", exceptionKind: null };
   }
   if (assessment.deliveryRoute === "partner" || assessment.deliveryRoute === "consortium") {
     return { score, dimensions, nextStage: null, lifecycleStatus: "needs_review", exceptionKind: "partner_required" };

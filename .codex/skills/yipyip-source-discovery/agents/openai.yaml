@@ -1,0 +1,6 @@
+interface:
+  display_name: "YipYip Source Discovery"
+  short_description: "Build safe, traceable opportunity discovery"
+  default_prompt: "Use $yipyip-source-discovery to implement or review this discovery-pipeline change."
+policy:
+  allow_implicit_invocation: true

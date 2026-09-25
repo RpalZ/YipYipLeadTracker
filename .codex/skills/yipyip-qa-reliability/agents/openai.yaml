@@ -1,0 +1,6 @@
+interface:
+  display_name: "YipYip QA Reliability"
+  short_description: "Evaluate quality, resilience, and release readiness"
+  default_prompt: "Use $yipyip-qa-reliability to test this change against the YipYip PRD."
+policy:
+  allow_implicit_invocation: true

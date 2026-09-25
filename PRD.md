@@ -7,8 +7,8 @@ A configurable system for finding and qualifying digital project opportunities b
 | **Item** | **Detail** |
 | --- | --- |
 | **Document status** | Draft for product and engineering alignment |
-| **Version** | 1.8 |
-| **Date** | 24 September 2026 |
+| **Version** | 1.9 |
+| **Date** | 25 September 2026 |
 | **Primary audience** | YipYip stakeholders, product, engineering, research operations, and business development |
 | **Decision requested** | Confirm MVP scope, scoring policy, review points, and the first source set before implementation |
 
@@ -187,13 +187,15 @@ Candidate is a workflow label rather than a separate persistent entity. An Oppor
 
 5. **First Assessment.** A bounded assessor produces evidence-backed dimension judgments. Application code applies hard exclusions and calculates the configured score; users do not click an Assess button.
 
-6. **Gap Analysis and focused research.** Only missing information capable of changing qualification, route, or rank becomes a research question. A bounded research agent accepts `unknown` and `not_found` as valid terminal outcomes.
+6. **Gap Analysis and focused research.** Only missing information capable of changing qualification, route, or rank becomes a research question. Application policy always injects an actionable-contact-route question unless cited evidence already establishes a named person, responsible team, procurement desk, or official tender channel. The bounded research agent accepts `unknown` and `not_found` as valid terminal outcomes.
 
-7. **Final Assessment and routing.** The complete evidence snapshot is rescored. The Router automatically rejects, monitors, qualifies, or creates a Needs-attention exception for borderline confidence, ambiguous identity, sensitive sectors, unusual budgets, partner dependency, or conflicting evidence.
+7. **Final Assessment and routing.** The complete evidence snapshot is rescored. The Router automatically rejects, monitors, qualifies, or creates a Needs-attention exception for borderline confidence, ambiguous identity, sensitive sectors, unusual budgets, partner dependency, conflicting evidence, or an unresolved actionable contact route. Agent confidence cannot override this deterministic gate.
 
 8. **Qualified lead review.** Qualified Opportunities automatically create review-ready Leads and appear in the gallery. Humans decide whether YipYip should pursue a finished lead; they do not perform routine discovery or assessment.
 
    The implemented Review tab supports **Pursue**, **Pass**, **Request research**, and **Change route**. Decisions are written through one atomic, version-checked RPC with stable reason codes, idempotency keys, immutable events, and role enforcement. Request research queues a fresh bounded qualification workflow at First Assessment; it does not imply that a missing public value will be found.
+
+   The implemented `/reviewed` pursuit workspace receives the session shortlist and persistent Lead/review state, grouping projects into **Working on**, **Research running**, **Saved and awaiting decision**, and **Passed**. Shortlist membership remains browser-session-only; Lead status and immutable review history remain authoritative in Supabase.
 
 9. **Implemented product-validation path.** The public demo simulates this complete workflow in browser `sessionStorage`: editable Lead Strategy, automatic Source Scout, individual approval, accelerated monitoring/assessment/research/routing, qualified leads, an exception, and repeat-run deduplication. It never calls Supabase or OpenAI and never represents simulated evidence as live.
 
@@ -343,6 +345,8 @@ Gap Analysis determines what the system still needs to know and whether learning
 ### Optional Deep Research
 
 Deep research shall run only when the Opportunity passes the first assessment and one or more material questions remain. An Opportunity with sufficient budget, scope, timing, contact, and evidence may proceed directly to final reassessment.
+
+An inferred contact label alone is not sufficient for automatic qualification. Before final routing, application code—not Gap Analyst discretion—shall require a bounded question for an actionable contact route. A confirmed or strongly inferred answer must include a citation-valid source, a concrete person/team/procurement/tender channel, and confidence of at least 0.65. If the bounded pass remains unknown, the Opportunity enters Needs attention rather than becoming a qualified Lead.
 
 - Generate research tasks from prioritized gaps rather than using one generic organization prompt.
 
@@ -609,6 +613,8 @@ This is an operations and system contract for exact sources. It is not the norma
 | FR 14 | Require one-time owner/operator source approval, then create independent weekday monitors automatically | Must · implemented vertical slice |
 | FR 15 | Orchestrate bounded source monitoring, normalization, exact resolution, first assessment, material-gap research, final assessment, and automatic routing as durable stages | Must · implemented vertical slice |
 | FR 16 | Show qualified Leads by default and route only genuine ambiguity/risk to Needs attention | Must · implemented vertical slice |
+| FR 17 | Inject and research an evidence-backed actionable contact route before automatic qualification; route bounded unknowns to Needs attention | Must · implemented vertical slice |
+| FR 18 | Provide a dedicated pursuit workspace for saved, research-pending, pursued, and passed Leads | Must · implemented vertical slice |
 
 ### Nonfunctional Requirements
 
@@ -853,6 +859,7 @@ The first source set should test distinct signal mechanisms rather than several 
 - The protected worker accepts only the server automation secret/service credential, processes one leased stage per invocation, reclaims expired leases, retries transient failure with bounded backoff, and routes terminal policy/budget/repeated failures to exceptions.
 - Uncited, non-HTTPS, stale, restricted, low-confidence, or deterministic duplicate candidates cannot create a Signal or Opportunity.
 - An approved source can produce a Signal, exact Organization/Opportunity match, initial Assessment, prioritized gaps, bounded findings, final Assessment, and review-ready qualified Lead without an Assess button.
+- A Gap Analyst omission cannot skip contact research: application policy injects the actionable-contact-route question, citation-valid findings appear in the Lead, and a bounded unknown routes to Needs attention.
 - Low-score candidates are rejected, evidence-sufficient candidates skip research, unknown findings terminate, and borderline/ambiguous/partner-dependent candidates enter Needs attention.
 - Repeating unchanged source results creates no duplicate Signal, Opportunity, Assessment, or Lead.
 - Every terminal source-monitor cycle updates deterministic health and appends one immutable policy-versioned health event. Reputation remains separate from health; individual cited pages receive neither job health nor synthetic trust scores.
@@ -863,6 +870,7 @@ The first source set should test distinct signal mechanisms rather than several 
 - A visitor starts with zero sources, runs, Opportunities, or Leads; edits the prefilled Lead Strategy; and watches Source Scout begin automatically.
 - The visitor approves sources individually. The demo then advances through monitoring, normalization, resolution, first assessment, gap analysis, focused research, final assessment, and routing without further clicks.
 - Finished results include qualified Leads and a genuine Needs-attention exception with complete score/evidence snapshots; the gallery defaults to qualified Leads.
+- Saving a Lead and choosing **Review saved leads** opens `/reviewed`; Pursue moves it to Working on, research requests remain visible as running, and Pass retains it in history.
 - Demo state remains isolated to the browser tab and never writes to Supabase or calls OpenAI. Simulated sources/evidence are visibly distinguished from live results.
 - Repeating the weekday simulation exact-matches existing Signals/Opportunities and creates no duplicate Assessment or Lead; reset returns a truly empty state.
 

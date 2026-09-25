@@ -1,0 +1,6 @@
+interface:
+  display_name: "YipYip Context Librarian"
+  short_description: "Maintain project context and implementation history"
+  default_prompt: "Use $yipyip-context-librarian to record this work and update the project handoff."
+policy:
+  allow_implicit_invocation: true
