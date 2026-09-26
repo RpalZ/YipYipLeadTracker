@@ -18,3 +18,8 @@ export function parseReviewBasket(value: string | null): string[] {
 export function toggleReviewBasketItem(items: string[], id: string): string[] {
   return items.includes(id) ? items.filter((item) => item !== id) : [...items, id];
 }
+
+export function reconcileReviewBasket(items: string[], availableIds: Iterable<string>): string[] {
+  const available = new Set(availableIds);
+  return items.filter((id) => available.has(id));
+}

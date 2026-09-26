@@ -1,4 +1,5 @@
 import type { DimensionName } from "@/lib/domain";
+import type { DeliveryCapacityStatus } from "@/lib/automation/strategy";
 
 export interface DimensionInput {
   name: DimensionName;
@@ -33,6 +34,7 @@ export interface CommercialFitInput {
   totalProjectValueEur: number | null;
   addressableScopeValueEur: number | null;
   addressableScopeStatus: AddressableScopeStatus;
+  scopeBasis: "dedicated_package" | "explicit_lot" | "whole_procurement" | "proxy" | "unknown";
   confidence: number;
   evidenceRefs: string[];
   explanation: string;
@@ -46,7 +48,7 @@ export interface ScoreResult {
 }
 
 export const initialPolicy: ScoringPolicy = {
-  version: "2026-09-24.2",
+  version: "2026-09-25.2",
   weights: {
     "Social impact": 0.12,
     "Technical fit": 0.16,
@@ -70,6 +72,19 @@ export const initialPolicy: ScoringPolicy = {
     largeProjectReviewEur: 250_000,
   },
 };
+
+export function capacityDimension(
+  status: DeliveryCapacityStatus,
+  effectiveUntil: string | null,
+  now = new Date(),
+): { score: number; confidence: number; unresolved: boolean; expired: boolean } {
+  const expires = effectiveUntil ? new Date(`${effectiveUntil}T23:59:59.999Z`) : null;
+  const expired = Boolean(expires && Number.isFinite(expires.getTime()) && expires < now);
+  if (expired || status === "unknown") return { score: 5, confidence: 0, unresolved: true, expired };
+  if (status === "available") return { score: 10, confidence: 1, unresolved: false, expired: false };
+  if (status === "limited") return { score: 6, confidence: 1, unresolved: false, expired: false };
+  return { score: 2, confidence: 1, unresolved: false, expired: false };
+}
 
 const clamp = (value: number, min: number, max: number) =>
   Math.min(max, Math.max(min, value));

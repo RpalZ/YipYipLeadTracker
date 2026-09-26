@@ -29,6 +29,12 @@ export interface OperatorAutomationStatus {
   } | null;
 }
 
+export interface OperatorFailurePresentation {
+  headline: string;
+  detail: string;
+  tone: "retry" | "error";
+}
+
 const stagePresentations: Record<string, OperatorStagePresentation> = {
   source_scout: {
     label: "Discovering reputable sources",
@@ -110,4 +116,34 @@ export function formatOperatorRetryTime(value: string): string {
     minute: "2-digit",
     hourCycle: "h23",
   }).format(date);
+}
+
+function isOutputSchemaMismatch(errorCode: string | null, reason: string): boolean {
+  return errorCode === "provider_output_schema"
+    || errorCode === "provider_output_contract"
+    || /invalid output type.*expected schema|source scout output contract/i.test(reason);
+}
+
+export function getOperatorFailurePresentation(
+  failure: OperatorAutomationStatus["lastFailure"],
+): OperatorFailurePresentation | null {
+  if (!failure) return null;
+  const cause = isOutputSchemaMismatch(failure.errorCode, failure.reason)
+    ? "The agent returned structured data that did not match the required contract. Nothing from that attempt was saved."
+    : failure.reason;
+  if (failure.retryScheduled) {
+    const retryWindow = failure.retryAt
+      ? formatOperatorRetryTime(failure.retryAt)
+      : "the backoff window";
+    return {
+      headline: "Attempt failed — retry queued",
+      detail: `${cause} The bounded retry is runnable after ${retryWindow}; in local mode, press Process live queue again then.`,
+      tone: "retry",
+    };
+  }
+  return {
+    headline: "Automation needs attention",
+    detail: cause,
+    tone: "error",
+  };
 }

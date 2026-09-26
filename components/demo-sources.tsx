@@ -2,22 +2,27 @@
 
 import Link from "next/link";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { InterfacePreferenceControls, useInterfacePreferences } from "@/components/interface-preferences";
+import { ReviewBasketControl } from "@/components/review-basket-control";
+import { LeadStrategyFields } from "@/components/source-actions";
 import { useDemoWorkflow } from "@/components/use-demo-workflow";
 
-const automationStages = [
-  "Monitoring the approved source for new signals",
-  "Validating citations and resolving exact entities",
-  "Running the first evidence-backed assessment",
-  "Researching only decision-relevant gaps",
-  "Reassessing and routing finished opportunities",
-];
-
-const workflowLabels = ["Strategy", "Source approval", "Automation", "Qualified leads"];
-
 export function DemoSources() {
+  const { copy, locale } = useInterfacePreferences();
+  const coverageCopy = locale === "nl"
+    ? { gap: "Dekkingshiaat", novelty: "Nieuwe dekking", simulated: "Gesimuleerd" }
+    : { gap: "Coverage gap", novelty: "New coverage", simulated: "Simulated" };
   const { state, hydrated, dispatch } = useDemoWorkflow();
+  const automationStages = useMemo(() => [
+    copy.demo.stageMonitor,
+    copy.demo.stageNormalize,
+    copy.demo.stageAssess,
+    copy.demo.stageResearch,
+    copy.demo.stageReassess,
+    copy.demo.stageRoute,
+  ], [copy]);
   const reduceMotion = useReducedMotion();
   const [automationStage, setAutomationStage] = useState(0);
   const [repeatRunning, setRepeatRunning] = useState(false);
@@ -59,7 +64,7 @@ export function DemoSources() {
     };
     void run();
     return () => { cancelled = true; };
-  }, [dispatch, reduceMotion, state.phase]);
+  }, [automationStages.length, dispatch, reduceMotion, state.phase]);
 
   const reset = () => {
     scoutStarted.current = false;
@@ -67,6 +72,22 @@ export function DemoSources() {
     setAutomationStage(0);
     setRepeatRunning(false);
     dispatch({ type: "reset" });
+  };
+
+  const saveStrategy = () => {
+    scoutStarted.current = false;
+    automationStarted.current = false;
+    setAutomationStage(0);
+    setRepeatRunning(false);
+    dispatch({ type: "save_strategy" });
+  };
+
+  const reviewSource = (sourceId: string, decision: "approved" | "rejected") => {
+    if (decision === "approved") {
+      automationStarted.current = false;
+      setAutomationStage(0);
+    }
+    dispatch({ type: "review_source", sourceId, decision });
   };
 
   const repeatCycle = () => {
@@ -79,146 +100,228 @@ export function DemoSources() {
     timers.current.push(timer);
   };
 
-  const activeStep = state.phase === "empty" || state.phase === "scouting"
-    ? 0
-    : state.phase === "awaiting_approval"
-      ? 1
-      : state.phase === "automating"
-        ? 2
-        : 3;
-  const approvedCount = state.sourceCandidates.filter((source) => source.status === "approved").length;
-  const proposedCount = state.sourceCandidates.filter((source) => source.status === "proposed").length;
+  const proposedSources = state.sourceCandidates.filter((source) => source.status === "proposed");
+  const approvedSources = state.sourceCandidates.filter((source) => source.status === "approved");
   const qualifiedCount = state.opportunities.filter((item) => item.lifecycleStatus === "qualified").length;
   const attentionCount = state.opportunities.filter((item) => item.lifecycleStatus === "needs_review").length;
+  const latestCycle = state.cycles[0] ?? null;
+  const formatDate = (value: string | null) => value
+    ? new Intl.DateTimeFormat(locale === "nl" ? "nl-NL" : "en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value))
+    : copy.common.notYet;
+  const running = state.phase === "scouting" || state.phase === "automating";
+  const runnerHeadline = state.phase === "scouting"
+    ? copy.demo.finding
+    : state.phase === "awaiting_approval"
+      ? copy.demo.approveTitle
+      : state.phase === "automating"
+        ? automationStages[automationStage]
+        : state.phase === "completed"
+          ? copy.runner.clear
+          : copy.runner.ready;
+  const runnerDetail = state.phase === "scouting"
+    ? copy.demo.checking
+    : state.phase === "awaiting_approval"
+      ? copy.demo.approvalText
+      : state.phase === "automating"
+        ? copy.demo.noButton
+        : state.phase === "completed"
+          ? copy.demo.completedText
+          : copy.sources.noActivityText;
+  const processedStages = state.phase === "automating"
+    ? automationStage
+    : state.phase === "completed" ? automationStages.length : 0;
+  const queuedStages = state.phase === "scouting"
+    ? 1
+    : state.phase === "automating" ? Math.max(0, automationStages.length - automationStage - 1) : 0;
 
   return (
     <div className="sources-shell demo-sources-shell">
       <header className="site-header">
-        <Link className="brand" href="/?demo=empty" aria-label="YipYip lead gallery home"><span>YY</span><strong>early_signal</strong></Link>
-        <nav aria-label="Primary navigation">
-          <Link href="/?demo=empty">Leads</Link>
-          <Link href="/sources?demo=empty" aria-current="page">Source Network</Link>
-          <Link href="/reviewed?demo=empty">Reviewed</Link>
+        <Link className="brand" href="/?demo=empty" aria-label={copy.nav.homeLabel}><span>YY</span><strong>early_signal</strong></Link>
+        <nav aria-label={copy.nav.primaryLabel}>
+          <Link href="/?demo=empty">{copy.nav.leads}</Link>
+          <Link href="/sources?demo=empty" aria-current="page">{copy.nav.sourceNetwork}</Link>
+          <Link href="/reviewed?demo=empty">{copy.nav.pursuitWorkspace}</Link>
+          <ReviewBasketControl opportunities={state.opportunities} scope="demo:empty" demoMode="empty" />
         </nav>
-        <span className="demo-account" aria-label="Interactive demo workspace">Demo</span>
+        <InterfacePreferenceControls />
+        <span className="demo-account" aria-label={copy.common.demo}>{copy.common.demo}</span>
       </header>
 
       <main>
         <section className="sources-heading demo-heading">
           <div>
-            <span className="section-label">AUTONOMOUS WORKFLOW DEMO</span>
-            <h1>Configure once. Review finished leads.</h1>
-            <p>Edit the Lead Strategy and approve a reputable source once. Discovery, assessment, focused research, and qualification then continue automatically.</p>
+            <span className="section-label">{copy.sources.eyebrow}</span>
+            <h1>{copy.sources.title}</h1>
+            <p>{copy.sources.intro}</p>
           </div>
-          <button type="button" className="quiet-action" disabled={!hydrated} onClick={reset}>Reset demo</button>
+          <button type="button" className="quiet-action" disabled={!hydrated} onClick={reset}>{copy.demo.reset}</button>
         </section>
 
         <div className="demo-simulation-note" role="note">
-          This is a deterministic browser simulation. It sends no data to Supabase, OpenAI, or the example publishers.
+          <strong>{copy.common.demo}.</strong> {copy.demo.note}
         </div>
 
-        <ol className="workflow-steps" aria-label="Demo workflow progress">
-          {workflowLabels.map((label, index) => (
-            <li key={label} className={index < activeStep ? "complete" : index === activeStep ? "active" : ""}>
-              <span>{index < activeStep ? "✓" : index + 1}</span>
-              <strong>{label}</strong>
-            </li>
-          ))}
-        </ol>
+        <section className="automation-summary" aria-label={copy.demo.summary}>
+          <div><span>{copy.sources.approved}</span><strong>{approvedSources.length}</strong><small>{copy.sources.weekday}</small></div>
+          <div><span>{copy.sources.awaiting}</span><strong>{proposedSources.length}</strong><small>{copy.sources.proposed}</small></div>
+          <div><span>{copy.sources.attention}</span><strong>{attentionCount}</strong><small>{copy.sources.notRoutine}</small></div>
+          <div><span>{copy.sources.completed}</span><strong>{state.cycles.length}</strong><small>€0.00 {copy.sources.estimated}</small></div>
+          <div><span>{copy.sources.lastSuccess}</span><strong className="summary-date">{formatDate(latestCycle?.completedAt ?? null)}</strong><small>{coverageCopy.simulated} · {copy.sources.workerReady}</small></div>
+        </section>
 
-        <AnimatePresence mode="wait" initial={false}>
-          {!hydrated ? (
-            <motion.section key="loading" className="demo-workflow-card" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-              <span className="section-label">LOADING SESSION</span>
-              <h2>Preparing the demo workspace…</h2>
-            </motion.section>
-          ) : state.phase === "empty" ? (
-            <motion.section key="strategy" className="demo-workflow-card strategy-demo-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}>
-              <div className="demo-card-copy">
-                <span className="section-label">LEAD STRATEGY</span>
-                <h2>Define what a worthwhile lead looks like</h2>
-                <p>Dutch agency-pitch defaults are prefilled, but the strategy belongs to the workspace and remains editable.</p>
+        <motion.section className={`live-runner demo-live-runner ${running ? "is-running" : "complete"}`} aria-busy={running}>
+          <div className="live-runner-content">
+            <div className="live-runner-heading">
+              <motion.span
+                className="live-runner-signal"
+                animate={running && !reduceMotion ? { opacity: [0.45, 1, 0.45], transform: ["scale(.86)", "scale(1)", "scale(.86)"] } : { opacity: 1, transform: "scale(1)" }}
+                transition={running && !reduceMotion ? { duration: 1.4, repeat: Infinity, ease: "easeInOut" } : { duration: 0 }}
+              />
+              <div>
+                <span className="live-runner-eyebrow">{coverageCopy.simulated} · {running ? copy.runner.active : copy.runner.label}</span>
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.strong key={runnerHeadline} initial={reduceMotion ? false : { opacity: 0, transform: "translateY(4px)" }} animate={{ opacity: 1, transform: "translateY(0)" }} exit={reduceMotion ? undefined : { opacity: 0, transform: "translateY(-4px)" }} transition={{ duration: 0.18 }}>{runnerHeadline}</motion.strong>
+                </AnimatePresence>
               </div>
-              <div className="strategy-demo-fields">
-                <label>Geography<input defaultValue="Netherlands" /></label>
-                <label>Languages<input defaultValue="Dutch, English" /></label>
-                <label>Services<input defaultValue="Strategy, service design, digital products" /></label>
-                <label>Budget fit<input defaultValue="€30k minimum · €50k–€100k preferred" /></label>
-                <label className="wide">Project types<textarea defaultValue="Websites, platforms, apps, redesigns, campaigns, agency reviews" /></label>
-                <label className="wide">Exclusions<textarea defaultValue="Awarded projects, closed pitches, unrelated vacancies, restricted sources" /></label>
-              </div>
-              <motion.button whileTap={{ scale: 0.985 }} type="button" className="primary-action" onClick={() => dispatch({ type: "save_strategy" })}>
-                Save and activate strategy
-              </motion.button>
-            </motion.section>
-          ) : state.phase === "scouting" ? (
-            <motion.section key="scouting" className="demo-workflow-card demo-live-card" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} aria-live="polite">
-              <span className="live-indicator" />
-              <div><span className="section-label">SOURCE SCOUT</span><h2>Finding reputable sources…</h2><p>Checking relevance, public access, freshness, ownership, and policy concerns.</p></div>
-            </motion.section>
-          ) : state.phase === "awaiting_approval" ? (
-            <motion.section key="approval" className="source-approval-section" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-              <div className="section-heading">
-                <div><span className="section-label">ONE-TIME HUMAN GATE</span><h2>Approve sources you trust</h2></div>
-                <span>{proposedCount} awaiting review</span>
-              </div>
-              <p>Approval creates a weekday monitor immediately. The agents—not the user—handle each opportunity after this point.</p>
-              <div className="candidate-grid">
-                {state.sourceCandidates.map((source) => (
-                  <article key={source.id} className={`source-candidate-card candidate-${source.status}`}>
-                    <div className="candidate-heading"><span className="source-family">{source.sourceFamily}</span><strong>{source.reputationScore}<small>/100 reputation</small></strong></div>
-                    <h3>{source.name}</h3>
-                    <p>{source.rationale}</p>
-                    <dl><div><dt>Class</dt><dd>{source.classification}</dd></div><div><dt>Scout confidence</dt><dd>{Math.round(source.confidence * 100)}%</dd></div></dl>
-                    <ul>{source.sampleResults.map((sample) => <li key={sample}>{sample}</li>)}</ul>
-                    {source.status === "proposed" ? (
-                      <div className="candidate-actions">
-                        <button type="button" className="primary-action" onClick={() => dispatch({ type: "review_source", sourceId: source.id, decision: "approved" })}>Approve source</button>
-                        <button type="button" className="quiet-action" onClick={() => dispatch({ type: "review_source", sourceId: source.id, decision: "rejected" })}>Reject</button>
-                      </div>
-                    ) : <span className="neutral-pill">{source.status}</span>}
-                  </article>
-                ))}
-              </div>
-            </motion.section>
-          ) : state.phase === "automating" ? (
-            <motion.section key="automation" className="demo-workflow-card automation-progress-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} aria-live="polite">
-              <div className="progress-heading"><span className="live-indicator" /><strong>Autonomous workflow in progress</strong><span>Stage {automationStage + 1} of {automationStages.length}</span></div>
-              <div className="progress-track" aria-hidden="true"><motion.i animate={{ width: `${((automationStage + 1) / automationStages.length) * 100}%` }} /></div>
-              <h2>{automationStages[automationStage]}</h2>
-              <p>No assessment button is required. Each bounded stage persists its result before the next one starts.</p>
-            </motion.section>
+            </div>
+            <p role="status" aria-live="polite">{runnerDetail}</p>
+            <div className="live-runner-meta" aria-label={copy.demo.progress}>
+              <span>{copy.runner.processed} <strong>{processedStages}</strong></span>
+              <span>{copy.runner.queued} <strong>{queuedStages}</strong></span>
+              {state.phase === "automating" ? <span>{copy.demo.stage} <strong>{automationStage + 1}/{automationStages.length}</strong></span> : null}
+            </div>
+            <div className="live-runner-track" aria-hidden="true">
+              <motion.span
+                animate={running && !reduceMotion ? { transform: ["translateX(-110%)", "translateX(410%)"] } : { transform: running ? "translateX(0%)" : "translateX(-110%)" }}
+                transition={running && !reduceMotion ? { duration: 1.8, repeat: Infinity, ease: "easeInOut" } : { duration: 0.2 }}
+              />
+            </div>
+          </div>
+          <button type="button" className={state.phase === "completed" ? "secondary-action" : "primary-action"} disabled={state.phase !== "completed" || repeatRunning} onClick={repeatCycle}>
+            {repeatRunning
+              ? copy.demo.monitoring
+              : state.phase === "completed"
+                ? copy.demo.nextWeekday
+                : running
+                  ? copy.runner.agentWorking
+                  : state.phase === "awaiting_approval" ? copy.demo.approve : copy.demo.save}
+          </button>
+        </motion.section>
+
+        <form className="strategy-form" onSubmit={(event) => { event.preventDefault(); saveStrategy(); }}>
+          <LeadStrategyFields
+            workspaceId="demo-workspace"
+            strategy={null}
+            displayVersion={state.strategySaved ? 1 : null}
+            displayAutomationEnabled={state.strategySaved ? true : null}
+            defaultsOverride={{
+              capacityStatus: "available",
+              capacityEffectiveUntil: "2027-03-31",
+              capacityNote: "One product squad available for the coming delivery window.",
+            }}
+          />
+          <div className="strategy-submit">
+            <motion.button whileTap={reduceMotion ? undefined : { transform: "scale(.985)" }} type="submit" className="primary-action" disabled={!hydrated || running}>
+              {state.strategySaved ? copy.strategy.saveVersion : copy.strategy.saveStart}
+            </motion.button>
+            <span>{copy.strategy.approvalNote}</span>
+          </div>
+        </form>
+
+        {state.strategySaved ? (
+          <div className="automation-control-row">
+            <div><strong>{copy.sources.weekdayAutomation}</strong><span>07:00 · Europe/Amsterdam · {copy.sources.nextRefresh} {copy.common.notYet}</span></div>
+            <button type="button" className="secondary-action" disabled>{copy.strategy.pause}</button>
+          </div>
+        ) : null}
+
+        {state.phase === "completed" ? (
+          <motion.section className="demo-live-outcome" initial={reduceMotion ? false : { opacity: 0, transform: "translateY(6px)" }} animate={{ opacity: 1, transform: "translateY(0)" }}>
+            <div><span className="section-label">{copy.demo.outcome}</span><h2>{qualifiedCount} {copy.demo.qualifiedLeads}</h2><p>{copy.demo.completedText}</p></div>
+            <Link className="primary-link" href="/?demo=empty">{copy.demo.openGallery}</Link>
+          </motion.section>
+        ) : null}
+
+        <section className="source-review-section">
+          <div className="section-heading"><div><span className="section-label">{copy.sources.gate}</span><h2>{copy.sources.inbox}</h2></div><span>{proposedSources.length} {copy.sources.waiting}</span></div>
+          {proposedSources.length ? (
+            <div className="source-candidate-list">
+              {proposedSources.map((source) => (
+                <article className="source-candidate-card" key={source.id}>
+                  <div className="candidate-heading">
+                    <div><span>{source.sourceFamily} · {source.classification}</span><h3>{source.name}</h3><a href={source.url} target="_blank" rel="noreferrer">{new URL(source.url).hostname} ↗</a></div>
+                    <strong>{source.reputationScore}<small>/100 {copy.sources.reputation}</small></strong>
+                  </div>
+                  <p>{source.rationale}</p>
+                  <dl className="candidate-facts">
+                    <div><dt>{coverageCopy.gap}</dt><dd>{source.coverageGap}</dd></div>
+                    <div><dt>{copy.sources.access}</dt><dd>{source.publicAccess ? copy.sources.public : copy.sources.restricted}</dd></div>
+                    <div><dt>{copy.sources.cadence}</dt><dd>{source.updateFrequency}</dd></div>
+                    <div><dt>{copy.sources.scoutConfidence}</dt><dd>{Math.round(source.confidence * 100)}%</dd></div>
+                    <div><dt>{copy.sources.monthlyCost}</dt><dd>€{source.estimatedMonthlyCost.toFixed(2)}</dd></div>
+                  </dl>
+                  <p className="candidate-novelty"><strong>{coverageCopy.novelty}</strong>{source.noveltyReason}</p>
+                  <details className="candidate-evidence"><summary>{source.sampleEvidence.length} {copy.sources.sampleResults}</summary>{source.sampleEvidence.map((sample) => <a key={`${source.id}-${sample.title}`} href={sample.url} target="_blank" rel="noreferrer"><strong>{sample.title}</strong><span>{sample.relevance}</span></a>)}</details>
+                  <div className="candidate-actions">
+                    <label><span className="sr-only">{copy.strategy.reviewNote}</span><input placeholder={copy.strategy.reviewNote} /></label>
+                    <button type="button" className="primary-action" onClick={() => reviewSource(source.id, "approved")}>{copy.strategy.approve}</button>
+                    <button type="button" className="secondary-action" onClick={() => reviewSource(source.id, "rejected")}>{copy.strategy.reject}</button>
+                  </div>
+                </article>
+              ))}
+            </div>
           ) : (
-            <motion.div key="completed" className="completed-demo-grid" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
-              <section className="demo-results">
-                <div className="section-heading">
-                  <div><span className="section-label">AUTOMATIC OUTCOME</span><h2>{qualifiedCount} qualified leads</h2></div>
-                  <Link className="primary-link" href="/?demo=empty">Open lead gallery →</Link>
-                </div>
-                <p>The engine completed assessment and research automatically. Only the ambiguous result needs human attention.</p>
-                <div className="demo-result-list">
-                  {state.opportunities.map((opportunity) => (
-                    <Link key={opportunity.id} href={`/?demo=empty&lead=${opportunity.id}`}>
-                      <span>{opportunity.organization}</span>
-                      <strong>{opportunity.title}</strong>
-                      <small>{opportunity.score}/100 · {opportunity.lifecycleStatus === "qualified" ? "Qualified" : "Needs attention"}</small>
-                    </Link>
-                  ))}
-                </div>
-              </section>
-              <aside className="automation-outcome-card">
-                <span className="section-label">AUTOMATION SUMMARY</span>
-                <dl><div><dt>Active sources</dt><dd>{approvedCount}</dd></div><div><dt>Qualified</dt><dd>{qualifiedCount}</dd></div><div><dt>Needs attention</dt><dd>{attentionCount}</dd></div><div><dt>Simulated cost</dt><dd>€0.00</dd></div></dl>
-                <button type="button" className="secondary-action" disabled={repeatRunning} onClick={repeatCycle}>{repeatRunning ? "Monitoring…" : "Simulate next weekday"}</button>
-                <small>Repeat monitoring demonstrates exact-match deduplication.</small>
-              </aside>
-              <section className="automation-activity-timeline">
-                <div className="section-heading"><div><span className="section-label">ACTIVITY</span><h2>What the system did</h2></div><span>{state.cycles.length} cycle{state.cycles.length === 1 ? "" : "s"}</span></div>
-                <ol>{state.activity.map((item) => <li key={item.id} className={item.status}><span aria-hidden="true" /><div><strong>{item.label}</strong><p>{item.detail}</p></div></li>)}</ol>
-              </section>
-            </motion.div>
+            <div className="sources-empty compact">
+              <h3>{state.phase === "scouting" ? copy.demo.finding : state.strategySaved ? copy.sources.noneWaiting : copy.sources.scoutAfterSave}</h3>
+              <p>{state.phase === "scouting" ? copy.demo.checking : copy.sources.routineText}</p>
+            </div>
           )}
-        </AnimatePresence>
+        </section>
+
+        <section className="approved-sources-section">
+          <div className="section-heading"><div><span className="section-label">{copy.sources.recurring}</span><h2>{copy.sources.approved}</h2></div><span>{approvedSources.length} {copy.sources.governedMonitors}</span></div>
+          {approvedSources.length ? (
+            <div className="approved-source-list">
+              {approvedSources.map((source) => (
+                <article key={source.id}>
+                  <div><span className={`health-dot ${latestCycle ? "health-healthy" : ""}`} /><strong>{source.name}</strong><small>{source.sourceFamily}</small></div>
+                  <dl>
+                    <div><dt>{copy.sources.reputation}</dt><dd>{source.reputationScore}/100</dd></div>
+                    <div><dt>{copy.sources.health}</dt><dd>{latestCycle ? "healthy" : "paused"}</dd></div>
+                    <div><dt>{copy.sources.lastRun}</dt><dd>{formatDate(latestCycle?.completedAt ?? null)}</dd></div>
+                    <div><dt>{copy.sources.nextRun}</dt><dd>07:00 · Europe/Amsterdam</dd></div>
+                  </dl>
+                  <button type="button" className="secondary-action" disabled>{copy.strategy.queueMonitor}</button>
+                </article>
+              ))}
+            </div>
+          ) : <div className="sources-empty compact"><h3>{copy.sources.noApproved}</h3><p>{copy.sources.noApprovedText}</p></div>}
+        </section>
+
+        <section className="automation-activity">
+          <div className="section-heading"><div><span className="section-label">{copy.sources.auditable}</span><h2>{copy.sources.recent}</h2></div><span>{state.cycles.length} {copy.sources.cycles}</span></div>
+          {state.activity.length ? (
+            <div className="activity-list">
+              {state.activity.map((item) => (
+                <article key={item.id}>
+                  <span className={`activity-status ${item.status === "attention" ? "waiting_approval" : "succeeded"}`} />
+                  <div><strong>{item.label}</strong><span>{item.detail}</span></div>
+                  <small>{coverageCopy.simulated} · €0.000</small>
+                </article>
+              ))}
+            </div>
+          ) : <div className="sources-empty compact"><h3>{copy.sources.noActivity}</h3><p>{copy.sources.noActivityText}</p></div>}
+        </section>
+
+        {attentionCount ? (
+          <section className="automation-exceptions">
+            <div className="section-heading"><div><span className="section-label">{copy.sources.humanAttention}</span><h2>{copy.sources.exceptions}</h2></div><span>{attentionCount} {copy.common.open.toLowerCase()}</span></div>
+            {state.opportunities.filter((item) => item.lifecycleStatus === "needs_review").map((item) => (
+              <article key={item.id}><span>{item.attentionException?.kind.replaceAll("_", " ") ?? copy.common.needsAttention}</span><strong>{item.title}</strong><small>{item.attentionException?.summary}</small><Link href={`/?demo=empty&lead=${item.id}&tab=review`}>{copy.sources.resolve}</Link></article>
+            ))}
+          </section>
+        ) : null}
       </main>
     </div>
   );

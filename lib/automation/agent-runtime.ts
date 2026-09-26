@@ -7,25 +7,41 @@ import {
   automatedAssessmentOutputSchema,
   gapAnalysisOutputSchema,
   researchOutputSchema,
-  sourceScoutOutputSchema,
+  sourceScoutWireOutputSchema,
   type AutomatedAssessmentOutput,
   type GapQuestion,
   type ResearchFindingOutput,
   type SourceScoutOutput,
+  type SourceScoutWireOutput,
 } from "@/lib/automation/contracts";
+import type { ResearchBundleKind } from "@/lib/automation/pipeline";
+import {
+  normalizeSourceScoutOutput,
+  summarizeSourceScoutContractIssues,
+  type SourceScoutContractIssue,
+} from "@/lib/automation/source-scout-output";
 import type { LeadStrategyInput } from "@/lib/automation/strategy";
-import { estimateDiscoveryCostEur } from "@/lib/discovery/cost";
+import type { SourceCoverageContext } from "@/lib/automation/source-coverage";
+import { RESEARCH_MAX_WEB_SEARCH_CALLS, SOURCE_SCOUT_MAX_WEB_SEARCH_CALLS, openAIWebSearchProviderData } from "@/lib/automation/vendor-limits";
+import {
+  OPENAI_PRICING_VERSION,
+  cachedInputTokensFromUsage,
+  estimateOpenAICostEur,
+  resolveOpenAIModelPricing,
+  resolveUsdToEurRate,
+} from "@/lib/discovery/cost";
 import { resolveAutomationWorkerConfig } from "@/lib/automation/runtime-config";
-import { collectWebSearchEvidenceUrls, countWebSearchCalls } from "@/lib/discovery/validation";
+import { collectWebSearchEvidenceUrls, collectWebSearchQueries, countWebSearchCalls } from "@/lib/discovery/validation";
 import type { EvidenceItem, OpportunityView } from "@/lib/domain";
 
 const MODEL = process.env.OPENAI_DISCOVERY_MODEL ?? "gpt-5.4-mini-2026-03-17";
 const PROVIDER_OUTPUT_TOKEN_BUDGET = 4_000;
-const FINAL_OUTPUT_TOKEN_TARGET = 1_200;
+const SOURCE_SCOUT_OUTPUT_TOKEN_TARGET = 2_200;
 
 export interface AutomationAgentTelemetry<T> {
   output: T;
   inputTokens: number;
+  cachedInputTokens: number;
   outputTokens: number;
   totalTokens: number;
   estimatedCostEur: number;
@@ -35,6 +51,21 @@ export interface AutomationAgentTelemetry<T> {
   consultedUrls: string[];
   searchQueries: string[];
   webSearchCallCount: number;
+  maxWebSearchCalls: number | null;
+  pricingVersion: string;
+  usdToEurRate: number;
+  outputValidation?: {
+    generatedCount: number;
+    rejectedCount: number;
+    issues: SourceScoutContractIssue[];
+  };
+}
+
+export class SourceScoutOutputContractError extends Error {
+  constructor(issues: SourceScoutContractIssue[]) {
+    super(`Source Scout output contract could not produce a safe result (${summarizeSourceScoutContractIssues(issues)}).`);
+    this.name = "SourceScoutOutputContractError";
+  }
 }
 
 function isWebSearchCall(item: unknown): boolean {
@@ -83,6 +114,7 @@ async function execute<T>({
   outputType,
   promptVersion,
   webSearch,
+  maxWebSearchCalls,
 }: {
   name: string;
   instructions: string;
@@ -90,8 +122,11 @@ async function execute<T>({
   outputType: ZodType<T>;
   promptVersion: string;
   webSearch: boolean;
+  maxWebSearchCalls?: number;
 }): Promise<AutomationAgentTelemetry<T>> {
   const runtime = config();
+  resolveOpenAIModelPricing(MODEL);
+  const usdToEurRate = resolveUsdToEurRate();
   setTracingDisabled(true);
   const provider = new OpenAIProvider({ apiKey: runtime.apiKey, baseURL: runtime.baseURL, useResponses: true });
   const runner = new Runner({ modelProvider: provider });
@@ -122,7 +157,7 @@ async function execute<T>({
           // The Responses API does not return the web-search source list unless
           // it is explicitly included. Deterministic citation validation relies
           // on these URLs and must never trust URLs from model output alone.
-          providerData: webSearch ? { include: ["web_search_call.action.sources"] } : undefined,
+          providerData: webSearch ? openAIWebSearchProviderData(maxWebSearchCalls) : undefined,
         },
       });
       agent.on("agent_tool_start", (_context, tool) => {
@@ -144,24 +179,45 @@ async function execute<T>({
       countWebSearchCalls(result.rawResponses),
     );
     if (webSearch && webSearchCallCount < 1) throw new Error(`${name} completed without the required web-search call.`);
+    if (maxWebSearchCalls !== undefined && webSearchCallCount > maxWebSearchCalls) {
+      throw new Error(`${name} exceeded the ${maxWebSearchCalls}-call hosted web-search limit.`);
+    }
     const consultedUrls = webSearch
       ? collectWebSearchEvidenceUrls([result.newItems.map((item) => item.toJSON()), result.rawResponses])
       : [];
     const rawOutput = result.finalOutput as Record<string, unknown>;
-    const searchQueries = Array.isArray(rawOutput.searchQueries) ? rawOutput.searchQueries.map(String) : [];
+    const reportedSearchQueries = Array.isArray(rawOutput.searchQueries) ? rawOutput.searchQueries.map(String) : [];
+    const observedSearchQueries = webSearch
+      ? collectWebSearchQueries([result.newItems.map((item) => item.toJSON()), result.rawResponses])
+      : [];
+    const searchQueries = [...new Set([...observedSearchQueries, ...reportedSearchQueries]
+      .map((query) => query.trim())
+      .filter(Boolean))];
     const usage = result.state.usage;
+    const cachedInputTokens = cachedInputTokensFromUsage(usage.inputTokensDetails);
     return {
       output: result.finalOutput as T,
       inputTokens: usage.inputTokens,
+      cachedInputTokens,
       outputTokens: usage.outputTokens,
       totalTokens: usage.totalTokens,
-      estimatedCostEur: estimateDiscoveryCostEur({ inputTokens: usage.inputTokens, outputTokens: usage.outputTokens, webSearchCalls: webSearchCallCount }),
+      estimatedCostEur: estimateOpenAICostEur({
+        model: MODEL,
+        inputTokens: usage.inputTokens,
+        cachedInputTokens,
+        outputTokens: usage.outputTokens,
+        webSearchCalls: webSearchCallCount,
+        usdToEurRate,
+      }),
       durationMs: Math.round(performance.now() - started),
       model: MODEL,
       promptVersion,
       consultedUrls,
       searchQueries,
       webSearchCallCount,
+      maxWebSearchCalls: maxWebSearchCalls ?? null,
+      pricingVersion: OPENAI_PRICING_VERSION,
+      usdToEurRate,
     };
   } catch (error) {
     if (controller.signal.aborted) {
@@ -176,25 +232,47 @@ async function execute<T>({
   }
 }
 
-export function runSourceScoutAgent(strategy: LeadStrategyInput) {
-  return execute<SourceScoutOutput>({
+export async function runSourceScoutAgent(
+  strategy: LeadStrategyInput,
+  coverage: SourceCoverageContext,
+): Promise<AutomationAgentTelemetry<SourceScoutOutput>> {
+  const telemetry = await execute<SourceScoutWireOutput>({
     name: "YipYip Source Scout",
-    promptVersion: "source-scout-v1",
+    promptVersion: "source-scout-v3-coverage-gaps",
     webSearch: true,
-    outputType: sourceScoutOutputSchema,
-    instructions: `Find up to three reputable public source families for recurring early-opportunity monitoring. You MUST use web search. Prefer primary publishers and established sector publications with stable public URLs. Do not propose restricted social scraping, private newsletters, or a single opportunity article as a source. Return zero proposals if evidence is insufficient. Keep the final structured output under approximately ${FINAL_OUTPUT_TOKEN_TARGET} tokens, keep every field concise, separate reputation evidence from operational health, and never enable a source.`,
-    prompt: `Propose sources for this Lead Strategy:\n${JSON.stringify(strategy)}`,
+    maxWebSearchCalls: SOURCE_SCOUT_MAX_WEB_SEARCH_CALLS,
+    outputType: sourceScoutWireOutputSchema,
+    instructions: `Find up to ${coverage.targetProposalCount} reputable public sources for recurring early-opportunity monitoring. You MUST use web search. Explore the supplied uncovered and lowest-covered signal areas before adding redundancy. Do not propose a domain already present in existingSources, and avoid rejectedDomains unless public access or relevance has materially changed. Proposals must use distinct domains, cover no more than two sources in the same primary coverage gap or source family, and explain in noveltyReason what coverage they add beyond the current network. Set coverageGap to one configured strategy area that the source primarily improves. Prefer primary publishers and established sector publications with stable public URLs. Do not propose restricted social scraping, private newsletters, or a single opportunity article as a source. Return zero proposals if evidence is insufficient. Keep the final structured output under approximately ${SOURCE_SCOUT_OUTPUT_TOKEN_TARGET} tokens, keep every field concise, separate reputation evidence from operational health, and never enable a source.`,
+    prompt: `Propose coverage-expanding sources for this Lead Strategy:\n${JSON.stringify(strategy)}\n\nCurrent Source Network coverage:\n${JSON.stringify(coverage)}`,
   });
+  const normalized = normalizeSourceScoutOutput(telemetry.output, telemetry.searchQueries);
+  if (!normalized.output) throw new SourceScoutOutputContractError(normalized.issues);
+  return {
+    ...telemetry,
+    output: normalized.output,
+    searchQueries: normalized.output.searchQueries,
+    outputValidation: {
+      generatedCount: normalized.generatedCount,
+      rejectedCount: normalized.rejectedCount,
+      issues: normalized.issues,
+    },
+  };
 }
 
-export function runAssessmentAgent(opportunity: OpportunityView, findings: ResearchFindingOutput[] = []) {
+export function runAssessmentAgent(
+  opportunity: OpportunityView,
+  strategy: LeadStrategyInput,
+  findings: ResearchFindingOutput[] = [],
+  phase: "initial" | "final" = "initial",
+) {
+  const final = phase === "final";
   return execute<AutomatedAssessmentOutput>({
     name: "YipYip Opportunity Assessor",
-    promptVersion: findings.length ? "final-assessment-v2-commercial-fit" : "first-assessment-v2-commercial-fit",
+    promptVersion: final ? "final-assessment-v3-original-brief" : "first-assessment-v3-original-brief",
     webSearch: false,
     outputType: automatedAssessmentOutputSchema,
-    instructions: `Assess only the supplied evidence. Score every configured dimension from 0 to 10 with separate confidence and concise evidence references. Apply hard exclusions explicitly. Unknown evidence must reduce confidence rather than be invented. Separate the total procurement or programme value from the portion realistically addressable by YipYip. Never treat a large total value as YipYip budget unless the evidence bounds that scope. Use evidence identifiers or cited finding URLs supplied in the prompt. Budget fit and delivery fit are non-linear: work can be too small, suitable, partner-dependent, or too large. Commercial access is not win probability.`,
-    prompt: `Opportunity:\n${JSON.stringify(opportunity)}\nAccepted research findings:\n${JSON.stringify(findings)}`,
+    instructions: `Assess only the supplied, citation-valid evidence against the supplied Lead Strategy. Score every configured dimension from 0 to 10 with separate confidence and concise evidence references. Classify sector, capability fit, and actionability explicitly. For capability fit, list the configured YipYip services that match in matchedServices and list concrete project requirements that are unsupported or still unclear in unmatchedRequirements. Do not confuse capability fit with the Lead Strategy's delivery-capacity status. Unknown evidence must reduce confidence rather than be invented. Apply hard exclusions explicitly but do not make the final routing decision. Separate the total procurement or programme value from the portion realistically addressable by YipYip: a whole-procurement value is never the addressable value without evidence of a dedicated package or explicit lot. Use evidence identifiers or cited finding URLs supplied in the prompt. Budget fit and delivery fit are non-linear: work can be too small, suitable, partner-dependent, or too large. Commercial access is not win probability. ${final ? "Create an evidence-grounded outreach snapshot in Dutch for Dutch-language opportunities and English otherwise. Keep the email body at 120 words or fewer and call opening at 60 words or fewer; include no unsupported claim and cite the supporting evidence references." : "Set outreachDraft to null; outreach is generated only from the final evidence snapshot."}`,
+    prompt: `Lead Strategy:\n${JSON.stringify(strategy)}\nOpportunity:\n${JSON.stringify(opportunity)}\nAccepted research findings:\n${JSON.stringify(findings)}`,
   });
 }
 
@@ -209,13 +287,35 @@ export function runGapAnalysisAgent(opportunity: OpportunityView, assessment: Au
   });
 }
 
-export function runResearchAgent(opportunity: OpportunityView, questions: GapQuestion[], existingEvidence: EvidenceItem[]) {
+const researchBundleGuidance: Record<ResearchBundleKind, string> = {
+  commercial: "Search procurement notices, tender attachments, grant decisions, programme budgets, annual plans, and explicit lots or packages. Never treat a whole programme value as YipYip-addressable without separate scope evidence.",
+  buyer_access: "Search the commissioning organization's team pages, procurement pages, tender portals, public directories, meeting documents, and the current project notice for a concrete buyer or official contact route.",
+  capability: "Search project briefs, technical specifications, roadmaps, architecture or integration requirements, and primary organization material that establishes the actual software delivery scope.",
+  timing: "Search current notices, planning documents, procurement calendars, decision minutes, deadlines, and separately dated follow-on activity. Distinguish an expired item from a genuinely current continuation.",
+  other: "Use the most authoritative primary source families that directly address the requested qualification question.",
+};
+
+export function runResearchAgent(
+  opportunity: OpportunityView,
+  questions: GapQuestion[],
+  existingEvidence: EvidenceItem[],
+  {
+    bundleKind = "other",
+    previousFindings = [],
+    diversifiedRetry = false,
+  }: {
+    bundleKind?: ResearchBundleKind;
+    previousFindings?: ResearchFindingOutput[];
+    diversifiedRetry?: boolean;
+  } = {},
+) {
   return execute<{ findings: ResearchFindingOutput[]; searchQueries: string[] }>({
     name: "YipYip Focused Researcher",
-    promptVersion: "focused-research-v1",
+    promptVersion: "focused-research-v2-bundled-corroboration",
     webSearch: true,
+    maxWebSearchCalls: RESEARCH_MAX_WEB_SEARCH_CALLS,
     outputType: researchOutputSchema,
-    instructions: `Research every requested qualification question and echo each field name exactly. You MUST use web search. Prefer primary sources. For an actionable contact route, look for a named person, responsible team, procurement desk, official tender contact, or public procurement channel and cite the page that supports it. An organization name alone is insufficient. Preserve unknown and not_found as valid terminal outcomes after reasonable attempts. Never fabricate budgets, contacts, dates, or access. Keep evidence excerpts out of the output and return only structured findings with URLs.`,
-    prompt: `Opportunity:\n${JSON.stringify(opportunity)}\nQuestions:\n${JSON.stringify(questions)}\nExisting evidence:\n${JSON.stringify(existingEvidence)}`,
+    instructions: `Research every requested qualification question in this single focused bundle and echo each field name exactly. You MUST use web search, but you may make at most ${RESEARCH_MAX_WEB_SEARCH_CALLS} hosted web-search calls in this pass; plan the highest-value queries first and return unknown rather than exceeding the limit. ${researchBundleGuidance[bundleKind]} Prefer primary sources. One authoritative primary source may confirm a direct fact; a strongly inferred claim requires at least two cited sources. The consulted search-source list is operational telemetry, while sourceUrls must contain only the pages that actually support that finding. For an actionable contact route, an organization name alone is insufficient. Unknown and not_found are valid when evidence remains unavailable, but only after materially different search angles across reasonable source families. Never fabricate budgets, contacts, dates, or access. Keep evidence excerpts out of the output and return only structured findings with URLs.`,
+    prompt: `Opportunity:\n${JSON.stringify(opportunity)}\nResearch bundle: ${bundleKind}\nDiversified retry required: ${diversifiedRetry ? "yes — do not repeat the same query wording or source family without a new angle" : "no"}\nQuestions:\n${JSON.stringify(questions)}\nPrior findings for these questions:\n${JSON.stringify(previousFindings)}\nExisting signal evidence:\n${JSON.stringify(existingEvidence)}`,
   });
 }

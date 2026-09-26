@@ -13,6 +13,8 @@ const proposal: SourceProposal = {
   publicAccess: true,
   observedUpdateFrequency: "Weekly",
   signalAreas: ["announcements"],
+  coverageGap: "announcements",
+  noveltyReason: "Adds primary publisher coverage for public programme announcements.",
   coverageRationale: "Publishes early programme and strategy announcements.",
   sampleEvidence: [
     { title: "Digital roadmap", url: "https://example.nl/news/roadmap", relevance: "Names a forthcoming platform programme." },
@@ -29,6 +31,9 @@ test("a lead strategy generates a stable internal search plan", () => {
   assert.equal(snapshot.version, 3);
   assert.deepEqual(snapshot.positiveTerms.filter((term) => term === "platform"), ["platform"]);
   assert.equal(snapshot.limits.resultLimit, 5);
+  assert.deepEqual(snapshot.sectorPolicy.hardExcluded, ["gambling", "heavy-polluting industry", "retail/e-commerce", "video games"]);
+  assert.equal(snapshot.capacity.status, "unknown");
+  assert.ok(snapshot.services.includes("back-end systems"));
 });
 
 test("source reputation remains deterministic and separate from runtime health", () => {

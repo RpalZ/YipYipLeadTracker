@@ -39,6 +39,19 @@ export const DEFAULT_DUTCH_AGENCY_PROFILE: DiscoveryProfileCriteria = {
     "campaigns",
     "agency reviews",
   ],
+  sectors: ["public services", "culture", "health", "education"],
+  organizationTypes: ["municipality", "public body", "foundation", "social enterprise"],
+  services: ["custom web applications", "custom mobile applications", "back-end systems", "digital platforms", "APIs and integrations", "high-volume engineering"],
+  impactThemes: ["accessibility", "public value", "inclusion"],
+  keywords: ["digital strategy", "platform", "redesign", "service journey", "agency review"],
+  projectClues: ["approved roadmap", "new programme", "supplier exploration", "funding award"],
+  exclusions: ["completed", "awarded", "closed pitch", "unrelated vacancy"],
+  hardExcludedSectors: ["gambling", "video games", "retail/e-commerce", "heavy-polluting industry"],
+  sensitiveSectors: ["pharma", "unresolved ethical concerns"],
+  minimumProjectBudgetEur: 30_000,
+  preferredBudgetMinEur: 50_000,
+  preferredBudgetMaxEur: 100_000,
+  largeProjectReviewEur: 250_000,
 };
 
 export function canonicalizeHttpsUrl(value: string): string | null {
@@ -83,6 +96,32 @@ export function buildSignalFingerprint(candidate: DiscoveryCandidate, canonicalU
 
 export function buildOpportunityKey(organization: string, title: string): string {
   return sha256(`${normalizeIdentity(organization)}|${normalizeIdentity(title)}`);
+}
+
+/**
+ * A web page is evidence provenance, not necessarily a single publisher item.
+ * Roundups and newsletters can contain several independent opportunities, so
+ * their candidates need distinct identities while retaining the same URL.
+ * The identity deliberately excludes excerpts and dates: a changed snapshot of
+ * the same logical candidate should become the next Signal revision.
+ */
+export function buildSignalSourceItemId(
+  candidate: Pick<DiscoveryCandidate, "organization" | "title">,
+  canonicalUrl: string,
+): string {
+  return `web-v1:${sha256([
+    canonicalUrl,
+    normalizeIdentity(candidate.organization),
+    normalizeIdentity(candidate.title),
+  ].join("|"))}`;
+}
+
+export function resolveSignalSourceItemId(
+  candidate: Pick<DiscoveryCandidate, "organization" | "title">,
+  canonicalUrl: string,
+  storedSourceItemId?: string | null,
+): string {
+  return storedSourceItemId ?? buildSignalSourceItemId(candidate, canonicalUrl);
 }
 
 function hostIsRestricted(canonicalUrl: string, restrictedHosts: string[]): boolean {
@@ -131,7 +170,11 @@ export function validateDiscoveryOutput({
       candidate,
       canonicalUrl,
       fingerprint,
-      opportunityKey: canonicalUrl ? buildOpportunityKey(candidate.organization, candidate.title) : null,
+      sourceItemId: canonicalUrl ? buildSignalSourceItemId(candidate, canonicalUrl) : null,
+      opportunityKey: canonicalUrl && candidate.entitySpecificity === "organization_specific"
+        ? buildOpportunityKey(candidate.organization, candidate.title)
+        : null,
+      programmeOnly: candidate.entitySpecificity === "programme_only",
       accepted: reasons.length === 0,
       rejectionReasons: reasons,
     };
@@ -184,20 +227,56 @@ export function collectWebSearchEvidenceUrls(value: unknown): string[] {
   return [...found];
 }
 
-export function countWebSearchCalls(value: unknown): number {
-  let count = 0;
-  const visit = (node: unknown) => {
+export function collectWebSearchQueries(value: unknown): string[] {
+  const found = new Set<string>();
+  const visit = (node: unknown, insideWebSearch = false, key = "") => {
+    if (typeof node === "string") {
+      if (insideWebSearch && /^(query|queries|search_query)$/i.test(key)) {
+        const query = node.trim();
+        if (query) found.add(query);
+      }
+      return;
+    }
     if (Array.isArray(node)) {
-      node.forEach(visit);
+      node.forEach((item) => visit(item, insideWebSearch, key));
       return;
     }
     if (!node || typeof node !== "object") return;
     const record = node as Record<string, unknown>;
     const type = typeof record.type === "string" ? record.type : "";
     const name = typeof record.name === "string" ? record.name : "";
-    if (type === "web_search_call" || (type === "hosted_tool_call" && name.startsWith("web_search"))) count += 1;
+    const isWebSearch = insideWebSearch
+      || type === "web_search_call"
+      || (type === "hosted_tool_call" && name.startsWith("web_search"));
+    Object.entries(record).forEach(([childKey, child]) => visit(child, isWebSearch, childKey));
+  };
+  visit(value);
+  return [...found];
+}
+
+export function countWebSearchCalls(value: unknown): number {
+  const identifiedCalls = new Set<string>();
+  let unidentifiedCalls = 0;
+  const visited = new WeakSet<object>();
+  const visit = (node: unknown) => {
+    if (Array.isArray(node)) {
+      node.forEach(visit);
+      return;
+    }
+    if (!node || typeof node !== "object") return;
+    if (visited.has(node)) return;
+    visited.add(node);
+    const record = node as Record<string, unknown>;
+    const type = typeof record.type === "string" ? record.type : "";
+    const name = typeof record.name === "string" ? record.name : "";
+    if (type === "web_search_call" || (type === "hosted_tool_call" && name.startsWith("web_search"))) {
+      const id = [record.id, record.call_id, record.callId]
+        .find((candidate): candidate is string => typeof candidate === "string" && candidate.length > 0);
+      if (id) identifiedCalls.add(id);
+      else unidentifiedCalls += 1;
+    }
     Object.values(record).forEach(visit);
   };
   visit(value);
-  return count;
+  return identifiedCalls.size + unidentifiedCalls;
 }

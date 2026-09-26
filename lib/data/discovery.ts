@@ -1,6 +1,8 @@
 import "server-only";
 
+import { summarizeDiscoveryActivity } from "@/lib/automation/activity-diagnostics";
 import { automationWorkerReadiness } from "@/lib/automation/runtime-config";
+import { writeAutomationLog } from "@/lib/automation/diagnostics";
 import type { OperatorAutomationStatus } from "@/lib/automation/operator-progress";
 import type { ApprovedSource, AutomationCycle, AutomationException, LeadStrategy, SourceCandidate } from "@/lib/domain";
 import { hasSupabaseEnv } from "@/lib/supabase/config";
@@ -29,7 +31,9 @@ export interface SourceNetworkPageData {
     proposalCount: number;
     generatedCount: number | null;
     rejectedForEvidence: number | null;
+    rejectedForCoverage: number | null;
     suppressedCount: number | null;
+    uncoveredAreas: string[];
     completedAt: string;
   } | null;
   summary: {
@@ -77,6 +81,10 @@ function sourceClassification(value: string | null): SourceCandidate["classifica
   return value === "primary" || value === "secondary" || value === "aggregator" ? value : null;
 }
 
+function jsonRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
 function exceptionStatus(value: string): AutomationException["status"] {
   return value === "resolved" || value === "dismissed" ? value : "open";
 }
@@ -121,6 +129,13 @@ export async function getSourcesPageData(requestedWorkspaceId?: string): Promise
     services: profile.technical_themes,
     keywords: profile.keywords,
     exclusions: profile.negative_terms,
+    hardExcludedSectors: profile.hard_excluded_sectors,
+    sensitiveSectors: profile.sensitive_sectors,
+    capacityStatus: ["available", "limited", "unavailable", "unknown"].includes(profile.capacity_status)
+      ? profile.capacity_status as LeadStrategy["capacityStatus"]
+      : "unknown",
+    capacityEffectiveUntil: profile.capacity_effective_until,
+    capacityNote: profile.capacity_note,
     minimumProjectBudgetEur: Number(profile.minimum_project_budget_eur),
     preferredBudgetMinEur: Number(profile.preferred_budget_min_eur),
     preferredBudgetMaxEur: Number(profile.preferred_budget_max_eur),
@@ -141,11 +156,11 @@ export async function getSourcesPageData(requestedWorkspaceId?: string): Promise
       : Promise.resolve({ data: [], error: null }),
     supabase.from("source_registry").select("id,name,source_family,base_url,health,schedule_enabled,next_run_at,last_run_at,reputation")
       .eq("workspace_id", selectedWorkspace.id).not("approved_at", "is", null).order("approved_at", { ascending: false }),
-    supabase.from("automation_workflow_runs").select("id,kind,status,current_stage,estimated_cost,stop_reason,failure_reason,created_at,finished_at")
+    supabase.from("automation_workflow_runs").select("id,kind,source_id,status,current_stage,estimated_cost,stop_reason,failure_reason,created_at,finished_at")
       .eq("workspace_id", selectedWorkspace.id).order("created_at", { ascending: false }).limit(20),
     supabase.from("automation_exceptions").select("id,exception_kind,summary,status,opportunity_id,source_id,created_at")
       .eq("workspace_id", selectedWorkspace.id).order("created_at", { ascending: false }).limit(20),
-    supabase.from("automation_stage_runs").select("id,workflow_run_id,stage,status,attempt,pass,error_code,failure_reason,output_snapshot,started_at,available_at,leased_until,finished_at,created_at")
+    supabase.from("automation_stage_runs").select("id,workflow_run_id,stage,status,attempt,pass,error_code,failure_reason,output_snapshot,usage,started_at,available_at,leased_until,finished_at,created_at")
       .eq("workspace_id", selectedWorkspace.id).in("status", ["queued", "running", "failed", "succeeded"])
       .order("created_at", { ascending: false }).limit(200),
   ]);
@@ -155,23 +170,28 @@ export async function getSourcesPageData(requestedWorkspaceId?: string): Promise
   if (exceptionResult.error) throw exceptionResult.error;
   if (stageResult.error) throw stageResult.error;
 
-  const candidates: SourceCandidate[] = (candidateResult.data ?? []).map((candidate) => ({
-    id: candidate.id,
-    name: candidate.name,
-    sourceFamily: candidate.source_family,
-    baseUrl: candidate.base_url,
-    classification: sourceClassification(candidate.source_classification),
-    coverageRationale: candidate.coverage_rationale,
-    confidence: Number(candidate.confidence),
-    reputationScore: candidate.reputation_score === null ? null : Number(candidate.reputation_score),
-    publicAccess: candidate.public_access,
-    updateFrequency: candidate.observed_update_frequency,
-    sampleEvidence: mapSampleEvidence(candidate.sample_evidence),
-    policyChecks: candidate.policy_checks && typeof candidate.policy_checks === "object" && !Array.isArray(candidate.policy_checks)
-      ? candidate.policy_checks as Record<string, unknown> : {},
-    estimatedMonthlyCost: Number(candidate.estimated_monthly_cost),
-    status: candidate.status,
-  }));
+  const candidates: SourceCandidate[] = (candidateResult.data ?? []).map((candidate) => {
+    const proposedConfig = jsonRecord(candidate.proposed_config);
+    const executionMetadata = jsonRecord(candidate.execution_metadata);
+    return {
+      id: candidate.id,
+      name: candidate.name,
+      sourceFamily: candidate.source_family,
+      baseUrl: candidate.base_url,
+      classification: sourceClassification(candidate.source_classification),
+      coverageRationale: candidate.coverage_rationale,
+      coverageGap: typeof proposedConfig.primaryCoverageGap === "string" ? proposedConfig.primaryCoverageGap : null,
+      noveltyReason: typeof executionMetadata.noveltyReason === "string" ? executionMetadata.noveltyReason : null,
+      confidence: Number(candidate.confidence),
+      reputationScore: candidate.reputation_score === null ? null : Number(candidate.reputation_score),
+      publicAccess: candidate.public_access,
+      updateFrequency: candidate.observed_update_frequency,
+      sampleEvidence: mapSampleEvidence(candidate.sample_evidence),
+      policyChecks: jsonRecord(candidate.policy_checks),
+      estimatedMonthlyCost: Number(candidate.estimated_monthly_cost),
+      status: candidate.status,
+    };
+  });
   const sources: ApprovedSource[] = (sourceResult.data ?? []).map((source) => {
     const reputation = source.reputation && typeof source.reputation === "object" && !Array.isArray(source.reputation)
       ? source.reputation as Record<string, unknown> : {};
@@ -187,17 +207,32 @@ export async function getSourcesPageData(requestedWorkspaceId?: string): Promise
       reputationScore: typeof reputation.score === "number" ? reputation.score : null,
     };
   });
-  const cycles: AutomationCycle[] = (cycleResult.data ?? []).map((cycle) => ({
-    id: cycle.id,
-    kind: cycle.kind,
-    status: cycle.status,
-    currentStage: cycle.current_stage,
-    estimatedCost: Number(cycle.estimated_cost),
-    stopReason: cycle.stop_reason,
-    failureReason: cycle.failure_reason,
-    createdAt: cycle.created_at,
-    finishedAt: cycle.finished_at,
-  }));
+  const stageRows = stageResult.data ?? [];
+  const stagesByWorkflow = new Map<string, typeof stageRows>();
+  for (const stage of stageRows) {
+    const workflowStages = stagesByWorkflow.get(stage.workflow_run_id) ?? [];
+    workflowStages.push(stage);
+    stagesByWorkflow.set(stage.workflow_run_id, workflowStages);
+  }
+  const cycles: AutomationCycle[] = (cycleResult.data ?? []).map((cycle) => {
+    const workflowStages = stagesByWorkflow.get(cycle.id) ?? [];
+    const diagnostics = cycle.kind === "source_monitor"
+      ? summarizeDiscoveryActivity(workflowStages)
+      : null;
+    return {
+      id: cycle.id,
+      kind: cycle.kind,
+      sourceName: sources.find((source) => source.id === cycle.source_id)?.name ?? null,
+      status: cycle.status,
+      currentStage: cycle.current_stage,
+      estimatedCost: Number(cycle.estimated_cost),
+      stopReason: cycle.stop_reason,
+      failureReason: cycle.failure_reason,
+      createdAt: cycle.created_at,
+      finishedAt: cycle.finished_at,
+      discoveryDiagnostics: diagnostics,
+    };
+  });
   const exceptions: AutomationException[] = (exceptionResult.data ?? []).map((item) => ({
     id: item.id,
     kind: item.exception_kind,
@@ -207,7 +242,7 @@ export async function getSourcesPageData(requestedWorkspaceId?: string): Promise
     sourceId: item.source_id,
     createdAt: item.created_at,
   }));
-  const allStages = stageResult.data ?? [];
+  const allStages = stageRows;
   const latestScoutStage = allStages.find((stage) => stage.stage === "source_scout" && stage.status === "succeeded" && stage.finished_at) ?? null;
   const latestScoutOutput = latestScoutStage?.output_snapshot && typeof latestScoutStage.output_snapshot === "object" && !Array.isArray(latestScoutStage.output_snapshot)
     ? latestScoutStage.output_snapshot as Record<string, unknown>
@@ -217,7 +252,11 @@ export async function getSourcesPageData(requestedWorkspaceId?: string): Promise
     proposalCount: numericScoutValue("proposalCount") ?? 0,
     generatedCount: numericScoutValue("generatedCount"),
     rejectedForEvidence: numericScoutValue("rejectedForEvidence"),
+    rejectedForCoverage: numericScoutValue("rejectedForCoverage"),
     suppressedCount: numericScoutValue("suppressedCount"),
+    uncoveredAreas: Array.isArray(latestScoutOutput.uncoveredAreas)
+      ? latestScoutOutput.uncoveredAreas.filter((value): value is string => typeof value === "string")
+      : [],
     completedAt: latestScoutStage.finished_at!,
   } : null;
   const activeStages = allStages.filter((stage) => stage.status === "queued" || stage.status === "running");
@@ -265,6 +304,16 @@ export async function getSourcesPageData(requestedWorkspaceId?: string): Promise
     } : null,
   };
   const successful = cycles.filter((cycle) => cycle.status === "succeeded");
+  writeAutomationLog("info", "source_network.snapshot", {
+    workspaceId: selectedWorkspace.id,
+    role: selectedWorkspace.role,
+    strategyVersion: strategy?.version ?? null,
+    approvedSourceCount: sources.length,
+    workflowCount: cycles.length,
+    stageCount: allStages.length,
+    pendingApprovalCount: candidates.filter((candidate) => candidate.status === "proposed" || candidate.status === "in_review").length,
+    openExceptionCount: exceptions.filter((item) => item.status === "open").length,
+  });
   return {
     mode: "ready",
     workspaces,

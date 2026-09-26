@@ -20,30 +20,30 @@ const palette = {
 };
 
 const nodes = [
-  { id: "open", x: 70, y: 245, w: 180, h: 92, label: "Open qualified\nLead gallery", state: "verified" },
-  { id: "filter", x: 290, y: 245, w: 205, h: 92, label: "Qualified · Monitoring\nNeeds attention", state: "verified", fontSize: 14 },
+  { id: "open", x: 70, y: 245, w: 180, h: 92, label: "Open pursuit\nLead gallery", state: "verified" },
+  { id: "filter", x: 290, y: 245, w: 205, h: 92, label: "Pursuit · Monitoring\nNeeds attention · All", state: "verified", fontSize: 14 },
   { id: "scan", x: 535, y: 222, w: 260, h: 138, label: "Scan each card\nWHAT · WHY · BUDGET\nWHERE · WHO · SOURCES", state: "verified" },
   { id: "select", x: 835, y: 245, w: 210, h: 92, label: "Click a lead\npush ?lead=<id>", state: "verified" },
-  { id: "drawer", x: 1085, y: 222, w: 275, h: 138, label: "Artifact-style drawer\nOverview · Evaluation\nSources · Review", state: "verified" },
+  { id: "drawer", x: 1085, y: 222, w: 275, h: 138, label: "Artifact-style drawer\nOverview · Evaluation · Sources\nOutreach · Review", state: "verified", fontSize: 15 },
   { id: "basket-add", x: 1400, y: 245, w: 190, h: 92, label: "Add to\nreview basket", state: "verified" },
-  { id: "basket", x: 1630, y: 222, w: 205, h: 138, label: "Pursuit workspace\n/reviewed\nsaved · working\nresearch · passed", state: "verified", fontSize: 14 },
+  { id: "basket", x: 1630, y: 222, w: 205, h: 138, label: "Pursuit workspace\n/reviewed\nautomatic · manual\nworking · research · passed", state: "verified", fontSize: 13 },
   { id: "review-mutation", x: 1630, y: 425, w: 205, h: 86, label: "Persistent review\npursue · pass · research\nroute + history", state: "verified", fontSize: 13 },
 
-  { id: "strategy", x: 60, y: 690, w: 210, h: 112, label: "Editable Lead Strategy\nsave / version", state: "verified", fontSize: 15 },
+  { id: "strategy", x: 60, y: 690, w: 210, h: 112, label: "Editable Lead Strategy\ncapability · sectors\nbudget · capacity", state: "verified", fontSize: 14 },
   { id: "scout", x: 310, y: 690, w: 210, h: 112, label: "Source Scout\nproposes reputable\nsources", state: "verified", fontSize: 15 },
   { id: "approve", x: 560, y: 690, w: 210, h: 112, label: "ONE-TIME GATE\napprove each source", state: "verified", fontSize: 15 },
   { id: "schedule", x: 810, y: 690, w: 210, h: 112, label: "Weekday monitor\n07:00 local · leases\nCron activation pending", state: "contract", fontSize: 14 },
   { id: "monitor", x: 1060, y: 690, w: 210, h: 112, label: "Source Monitor\nbounded web search", state: "verified", fontSize: 15 },
   { id: "normalize", x: 1310, y: 690, w: 220, h: 112, label: "Normalize + validate\ncitations · dates · dedupe", state: "verified", fontSize: 14 },
-  { id: "resolve", x: 1570, y: 690, w: 230, h: 112, label: "Exact resolver\nSignal + Organization\n+ Opportunity", state: "verified", fontSize: 14 },
+  { id: "resolve", x: 1570, y: 690, w: 230, h: 112, label: "Exact resolver\norg-specific → Opportunity\nprogramme → Signal only", state: "verified", fontSize: 13 },
 
   { id: "assess", x: 1570, y: 865, w: 230, h: 112, label: "First Assessor\napplication scoring", state: "verified", fontSize: 15 },
-  { id: "gaps", x: 1310, y: 865, w: 220, h: 112, label: "Gap Analyst\n+ mandatory contact\nroute question", state: "verified", fontSize: 14 },
-  { id: "research", x: 1060, y: 865, w: 210, h: 112, label: "Research Agent\ncontact + material gaps\nbounded · unknown OK", state: "verified", fontSize: 13 },
-  { id: "final", x: 810, y: 865, w: 210, h: 112, label: "Final Assessor\ncomplete evidence", state: "verified", fontSize: 15 },
-  { id: "router", x: 560, y: 865, w: 210, h: 112, label: "Deterministic Router\ncontact gate · score\nqualify · exception", state: "verified", fontSize: 14 },
-  { id: "qualified", x: 310, y: 865, w: 210, h: 112, label: "Qualified Lead\nappears automatically", state: "verified", fontSize: 15 },
-  { id: "attention", x: 60, y: 865, w: 210, h: 112, label: "Needs attention\ngenuine exceptions", state: "verified", fontSize: 15 },
+  { id: "gaps", x: 1310, y: 865, w: 220, h: 112, label: "Gap Analyst\nbudget · capability\nactionability · contact", state: "verified", fontSize: 13 },
+  { id: "research", x: 1060, y: 865, w: 210, h: 112, label: "Research Agent\nfocused evidence bundles\n2 attempts · unknown OK", state: "verified", fontSize: 13 },
+  { id: "final", x: 810, y: 865, w: 210, h: 112, label: "Final Assessor\nevidence snapshot\nemail + call drafts", state: "verified", fontSize: 14 },
+  { id: "router", x: 560, y: 865, w: 210, h: 112, label: "Deterministic Router\nqualify · monitor · reject\nor genuine exception", state: "verified", fontSize: 13 },
+  { id: "qualified", x: 310, y: 865, w: 210, h: 112, label: "Versioned Lead\n+ immutable outreach\nappears automatically", state: "verified", fontSize: 14 },
+  { id: "attention", x: 60, y: 865, w: 210, h: 112, label: "Needs attention\nmonitoring · rejected\nmanual promotion option", state: "verified", fontSize: 14 },
 ];
 
 const edges = [
@@ -69,7 +69,9 @@ const edges = [
   { points: [[810, 921], [770, 921]] },
   { points: [[560, 921], [520, 921]] },
   { points: [[560, 946], [520, 1010], [165, 1010], [165, 977]], label: "exception", labelX: 335, labelY: 982 },
+  { points: [[665, 865], [665, 590], [390, 590], [390, 337]], label: "promising · public facts unavailable", labelX: 405, labelY: 565 },
   { points: [[310, 921], [25, 921], [25, 291], [70, 291]], label: "automatic qualified Lead", labelX: 45, labelY: 572 },
+  { points: [[60, 946], [45, 946], [45, 430], [160, 430], [160, 337]], label: "owner/reviewer · attributed manual pursuit", labelX: 70, labelY: 407 },
 ];
 
 const byId = new Map(nodes.map((node) => [node.id, node]));
@@ -183,7 +185,7 @@ elements.push(
   textElement("lane-review-title", 60, 177, 720, 28, "A · OPERATOR REVIEW FLOW — WORKS NOW", 19, "left", palette.verifiedStroke),
   textElement("lane-pipeline-title", 60, 638, 1120, 28, "B · AUTONOMOUS SOURCE-TO-LEAD PIPELINE — IMPLEMENTED VERTICAL SLICE", 19, "left", palette.verifiedStroke),
   textElement("data-title", 92, 1121, 420, 25, "SUPABASE DURABLE DATA PLANE", 17, "left", palette.contractStroke),
-  textElement("data-copy", 92, 1155, 1160, 45, "Auth + workspaces + RLS  |  Lead Strategy + sources  |  workflows + stages + health events\nsignals + opportunities + commercial snapshots + versioned leads + review events", 15, "left"),
+  textElement("data-copy", 92, 1155, 1160, 45, "Auth + workspaces + RLS  |  Lead Strategy + sources  |  workflows + stages + health events\nsignals + opportunities + qualification checks + outreach snapshots + attributed Lead origins + review events", 14, "left"),
   textElement("controls-title", 1352, 1121, 450, 25, "BOUNDED CONTROLS — IMPLEMENTED", 17, "left", palette.verifiedStroke),
   textElement("controls-copy", 1352, 1155, 455, 45, "Idempotency · stage leases · retries · time/cost limits\nserver-only secrets · hosted Cron activation pending", 14, "left"),
   rectangle("legend-verified-box", 1372, 48, 26, 22, palette.verified, palette.verifiedStroke, "solid", 0),
@@ -216,7 +218,7 @@ const svgPath = (points) => points.map(([x, y], index) => `${index ? "L" : "M"}$
 
 const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1260" viewBox="0 0 1920 1260" role="img" aria-labelledby="workflow-title workflow-desc">
   <title id="workflow-title">YipYip signal-to-lead and review workflow</title>
-  <desc id="workflow-desc">Two lanes show finished Lead review and the autonomous workflow from an editable Lead Strategy through Source Scout, one-time source approval, recurring monitoring, validation, assessment, focused research, automatic qualification, and exception routing.</desc>
+  <desc id="workflow-desc">Two lanes show Lead review and the autonomous workflow from an editable Lead Strategy through Source Scout, source approval, recurring monitoring, validation, assessment, focused research, automatic qualification, exception routing, and a separately attributed manual-pursuit override.</desc>
   <defs><marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="${palette.ink}"/></marker><marker id="arrowhead-planned" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="${palette.plannedStroke}"/></marker></defs>
   <rect width="1920" height="1260" fill="${palette.paper}"/>
   <rect x="35" y="155" width="1850" height="420" rx="18" fill="${palette.lane}" stroke="#c7cfcc"/>
@@ -231,7 +233,7 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1260" 
   ${svgText(60, 631, 1120, 32, "B · AUTONOMOUS SOURCE-TO-LEAD PIPELINE — IMPLEMENTED VERTICAL SLICE", 19, palette.verifiedStroke, "start")}
   ${edges.filter((edge) => edge.label).map((edge) => `<text x="${edge.labelX}" y="${edge.labelY + 14}" fill="${edge.dashed ? palette.plannedStroke : palette.muted}" font-size="13" font-family="JetBrains Mono, ui-monospace, monospace">${esc(edge.label)}</text>`).join("\n  ")}
   ${svgText(92, 1110, 500, 35, "SUPABASE DURABLE DATA PLANE", 17, palette.contractStroke, "start")}
-  ${svgText(92, 1150, 1160, 52, "Auth + workspaces + RLS  |  Lead Strategy + sources  |  workflows + stages + health events\nsignals + opportunities + commercial snapshots + versioned leads + review events", 15, palette.ink, "start")}
+  ${svgText(92, 1150, 1160, 52, "Auth + workspaces + RLS  |  Lead Strategy + sources  |  workflows + stages + health events\nsignals + opportunities + qualification checks + outreach snapshots + attributed Lead origins + review events", 14, palette.ink, "start")}
   ${svgText(1352, 1110, 450, 35, "BOUNDED CONTROLS — IMPLEMENTED", 17, palette.verifiedStroke, "start")}
   ${svgText(1352, 1150, 455, 52, "Idempotency · stage leases · retries · time/cost limits\nserver-only secrets · hosted Cron activation pending", 14, palette.ink, "start")}
   <rect x="1372" y="48" width="26" height="22" rx="4" fill="${palette.verified}" stroke="${palette.verifiedStroke}"/><text x="1407" y="65" fill="${palette.ink}" font-size="14" font-family="JetBrains Mono, ui-monospace, monospace">Verified now</text>

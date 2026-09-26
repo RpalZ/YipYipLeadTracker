@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { dimensionNames } from "../lib/domain";
-import { budgetFitScore, calculateScore, initialPolicy } from "../lib/scoring";
+import { budgetFitScore, calculateScore, capacityDimension, initialPolicy } from "../lib/scoring";
 
 const dimensionsAt = (score: number, confidence = 0.8) =>
   dimensionNames.map((name) => ({ name, score, confidence }));
@@ -53,4 +53,13 @@ test("commercial budget curve honors the YipYip floor and preferred range", () =
 test("recalibrated weights total one", () => {
   const total = Object.values(initialPolicy.weights).reduce((sum, weight) => sum + weight, 0);
   assert.equal(Math.round(total * 100), 100);
+});
+
+test("capacity states and expiry are deterministic", () => {
+  const now = new Date("2026-09-25T00:00:00Z");
+  assert.deepEqual(capacityDimension("available", "2026-12-31", now), { score: 10, confidence: 1, unresolved: false, expired: false });
+  assert.deepEqual(capacityDimension("limited", "2026-12-31", now), { score: 6, confidence: 1, unresolved: false, expired: false });
+  assert.deepEqual(capacityDimension("unavailable", "2026-12-31", now), { score: 2, confidence: 1, unresolved: false, expired: false });
+  assert.deepEqual(capacityDimension("unknown", null, now), { score: 5, confidence: 0, unresolved: true, expired: false });
+  assert.deepEqual(capacityDimension("available", "2026-09-01", now), { score: 5, confidence: 0, unresolved: true, expired: true });
 });

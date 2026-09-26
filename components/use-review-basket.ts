@@ -1,13 +1,23 @@
 "use client";
 
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 
-import { parseReviewBasket, reviewBasketStorageKey, toggleReviewBasketItem } from "@/lib/review-basket";
+import {
+  parseReviewBasket,
+  reconcileReviewBasket,
+  reviewBasketStorageKey,
+  toggleReviewBasketItem,
+} from "@/lib/review-basket";
 
 const EVENT_NAME = "yipyip-review-basket";
 
-export function useReviewBasket(scope: string) {
+export function useReviewBasket(scope: string, availableIds?: readonly string[]) {
   const key = useMemo(() => reviewBasketStorageKey(scope), [scope]);
+  const availableIdSignature = availableIds?.join("\u0000") ?? null;
+  const availableIdSet = useMemo(
+    () => availableIdSignature === null ? null : availableIdSignature.split("\u0000").filter(Boolean),
+    [availableIdSignature],
+  );
   const subscribe = useCallback((onStoreChange: () => void) => {
     const handleChange = () => onStoreChange();
     window.addEventListener("storage", handleChange);
@@ -22,12 +32,24 @@ export function useReviewBasket(scope: string) {
     () => window.sessionStorage.getItem(key) ?? "[]",
     () => "[]",
   );
-  const ids = useMemo(() => parseReviewBasket(serialized), [serialized]);
+  const storedIds = useMemo(() => parseReviewBasket(serialized), [serialized]);
+  const ids = useMemo(
+    () => availableIdSet === null ? storedIds : reconcileReviewBasket(storedIds, availableIdSet),
+    [availableIdSet, storedIds],
+  );
 
   const write = useCallback((next: string[]) => {
     window.sessionStorage.setItem(key, JSON.stringify(next));
     window.dispatchEvent(new Event(EVENT_NAME));
   }, [key]);
+
+  useEffect(() => {
+    if (availableIdSet === null || ids.length === storedIds.length) return;
+    // Basket IDs can outlive an Opportunity after a demo reset, quarantine,
+    // or workspace/data change. Persist the reconciled list so the shared
+    // badge and drawer cannot disagree about how many usable items exist.
+    write(ids);
+  }, [availableIdSet, ids, storedIds.length, write]);
 
   return {
     ids,

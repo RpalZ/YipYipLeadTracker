@@ -1,5 +1,9 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 
+import { InterfacePreferenceControls } from "@/components/interface-preferences";
+import { uiCopy } from "@/lib/i18n";
+import { resolveUiLocale, UI_LOCALE_COOKIE } from "@/lib/interface-preferences";
 import { signIn } from "./actions";
 
 export default async function LoginPage({
@@ -8,32 +12,36 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { error } = await searchParams;
+  const cookieStore = await cookies();
+  const locale = resolveUiLocale(cookieStore.get(UI_LOCALE_COOKIE)?.value);
+  const copy = uiCopy[locale];
   return (
     <main className="login-shell">
       <section className="login-context">
         <Link href="/" className="brand-mark large">YY</Link>
         <div>
-          <p className="eyebrow">YipYip early signal</p>
-          <h1>See the opportunity before it becomes a tender.</h1>
-          <p>One review surface for fresh signals, sourced claims, qualification gaps, and the next useful action.</p>
+          <p className="eyebrow">{copy.login.eyebrow}</p>
+          <h1>{copy.login.title}</h1>
+          <p>{copy.login.intro}</p>
         </div>
-        <small>Small signal set. Deep evidence. Human judgment.</small>
+        <small>{copy.login.promise}</small>
       </section>
       <section className="login-card">
+        <InterfacePreferenceControls />
         <div>
-          <p className="eyebrow">Workspace access</p>
-          <h2>Sign in</h2>
-          <p>Use the account connected to your YipYip workspace.</p>
+          <p className="eyebrow">{copy.login.access}</p>
+          <h2>{copy.login.signIn}</h2>
+          <p>{copy.login.account}</p>
         </div>
         {error ? <p className="form-error" role="alert">{error}</p> : null}
         <form action={signIn}>
-          <label>Email<input type="email" name="email" autoComplete="email" required placeholder="you@yipyip.nl" /></label>
-          <label>Password<input type="password" name="password" autoComplete="current-password" required placeholder="Your password" /></label>
-          <button type="submit">Sign in</button>
+          <label>{copy.login.email}<input type="email" name="email" autoComplete="email" required placeholder="you@yipyip.nl" /></label>
+          <label>{copy.login.password}<input type="password" name="password" autoComplete="current-password" required placeholder={copy.login.passwordPlaceholder} /></label>
+          <button type="submit">{copy.login.signIn}</button>
         </form>
-        <div className="demo-options" aria-label="Demo workspace options">
-          <Link href="/?demo=empty&reset=1">Start with an empty demo</Link>
-          <Link href="/?demo=sample">View sample project leads</Link>
+        <div className="demo-options" aria-label={copy.login.demoOptions}>
+          <Link href="/?demo=empty&reset=1">{copy.login.emptyDemo}</Link>
+          <Link href="/?demo=sample">{copy.login.sample}</Link>
         </div>
       </section>
     </main>

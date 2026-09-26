@@ -307,7 +307,7 @@ begin
   ) then
     raise exception 'approved candidate did not retain its governed source reference';
   end if;
-  if (select count(*) from public.coverage_profile_sources) <> 1 then
+  if (select count(*) from public.coverage_profile_sources where workspace_id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') <> 1 then
     raise exception 'approved source was not linked to the coverage profile';
   end if;
 end;

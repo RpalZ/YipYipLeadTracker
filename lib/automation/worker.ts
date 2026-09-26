@@ -6,13 +6,14 @@ import { runAssessmentAgent, runGapAnalysisAgent, runResearchAgent, runSourceSco
 import { resolveAutomationExecutionTiming } from "@/lib/automation/runtime-config";
 import { automationErrorIsRetryable, describeAutomationError, writeAutomationLog } from "@/lib/automation/diagnostics";
 import type { AutomatedAssessmentOutput, AutomationStage, ResearchFindingOutput } from "@/lib/automation/contracts";
-import { ensureRequiredResearchQuestions, evaluateCostLimit, resolveActionableContactRoute, routeAssessment, sourceScoutCompletion, validateCommercialFitEvidence, validateResearchPass, validateSourceProposalEvidence } from "@/lib/automation/pipeline";
-import { defaultLeadStrategy, evaluateSourceReputation, sourceSuppressionFingerprint, type LeadStrategyInput } from "@/lib/automation/strategy";
+import { buildSourceCoverageContext, selectDiverseSourceProposals, type SourceCoverageRecord } from "@/lib/automation/source-coverage";
+import { MAX_RESEARCH_ATTEMPTS_PER_QUESTION, MAX_RESEARCH_PASSES, ensureQualificationResearchQuestions, evaluateCostLimit, resolveActionableContactRoute, routeAssessment, selectResearchBundle, sourceScoutCompletion, validateCommercialFitEvidence, validateResearchPass, validateSourceProposalEvidence } from "@/lib/automation/pipeline";
+import { buildSearchPlanSnapshot, defaultLeadStrategy, evaluateSourceReputation, sourceSuppressionFingerprint, type LeadStrategyInput } from "@/lib/automation/strategy";
 import { mapOpportunityDashboardRow, type DashboardRow } from "@/lib/data/opportunities";
 import type { DiscoveryProfileCriteria, ValidatedDiscoveryResult } from "@/lib/discovery/contracts";
 import { runDiscoveryAgent } from "@/lib/discovery/runtime";
 import { evaluateDiscoveryHealth } from "@/lib/discovery/health";
-import { normalizeIdentity, validateDiscoveryOutput } from "@/lib/discovery/validation";
+import { normalizeIdentity, resolveSignalSourceItemId, validateDiscoveryOutput } from "@/lib/discovery/validation";
 import type { DiscoveryRunHealthInput } from "@/lib/discovery/contracts";
 import type { OpportunityView } from "@/lib/domain";
 import { initialPolicy, type ScoringPolicy } from "@/lib/scoring";
@@ -34,6 +35,7 @@ interface ClaimedStage {
 
 interface WorkflowRow {
   id: string;
+  kind: "source_scout" | "source_monitor" | "opportunity_qualification";
   workspace_id: string;
   coverage_profile_id: string;
   source_id: string | null;
@@ -81,7 +83,14 @@ function strategyFromRow(row: Record<string, unknown>): LeadStrategyInput {
     impactThemes: Array.isArray(row.impact_themes) ? row.impact_themes.map(String) : fallback.impactThemes,
     keywords: Array.isArray(row.keywords) ? row.keywords.map(String) : fallback.keywords,
     exclusions: Array.isArray(row.negative_terms) ? row.negative_terms.map(String) : fallback.exclusions,
+    hardExcludedSectors: Array.isArray(row.hard_excluded_sectors) ? row.hard_excluded_sectors.map(String) : fallback.hardExcludedSectors,
+    sensitiveSectors: Array.isArray(row.sensitive_sectors) ? row.sensitive_sectors.map(String) : fallback.sensitiveSectors,
     projectClues: Array.isArray(row.project_clues) ? row.project_clues.map(String) : fallback.projectClues,
+    capacityStatus: ["available", "limited", "unavailable", "unknown"].includes(String(row.capacity_status))
+      ? row.capacity_status as LeadStrategyInput["capacityStatus"]
+      : fallback.capacityStatus,
+    capacityEffectiveUntil: typeof row.capacity_effective_until === "string" ? row.capacity_effective_until : null,
+    capacityNote: typeof row.capacity_note === "string" ? row.capacity_note : null,
     minimumProjectBudgetEur: Number(row.minimum_project_budget_eur ?? fallback.minimumProjectBudgetEur),
     preferredBudgetMinEur: Number(row.preferred_budget_min_eur ?? fallback.preferredBudgetMinEur),
     preferredBudgetMaxEur: Number(row.preferred_budget_max_eur ?? fallback.preferredBudgetMaxEur),
@@ -95,6 +104,52 @@ function strategyFromRow(row: Record<string, unknown>): LeadStrategyInput {
   };
 }
 
+function jsonObject(value: Json): Record<string, Json | undefined> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, Json | undefined>
+    : {};
+}
+
+function jsonStringArray(value: Json | undefined): string[] {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+async function loadSourceCoverageRecords(
+  admin: AdminClient,
+  workspaceId: string,
+  coverageProfileId: string,
+): Promise<SourceCoverageRecord[]> {
+  const [candidateResult, sourceResult] = await Promise.all([
+    admin.from("discovery_source_candidates")
+      .select("name,base_url,source_family,status,proposed_config")
+      .eq("workspace_id", workspaceId)
+      .eq("coverage_profile_id", coverageProfileId),
+    admin.from("source_registry")
+      .select("name,base_url,source_family,search_config")
+      .eq("workspace_id", workspaceId)
+      .not("approved_at", "is", null),
+  ]);
+  if (candidateResult.error) throw candidateResult.error;
+  if (sourceResult.error) throw sourceResult.error;
+
+  return [
+    ...(candidateResult.data ?? []).map((candidate) => ({
+      name: candidate.name,
+      baseUrl: candidate.base_url,
+      sourceFamily: candidate.source_family,
+      signalAreas: jsonStringArray(jsonObject(candidate.proposed_config).signalAreas),
+      status: candidate.status,
+    })),
+    ...(sourceResult.data ?? []).flatMap((source) => source.base_url ? [{
+      name: source.name,
+      baseUrl: source.base_url,
+      sourceFamily: source.source_family,
+      signalAreas: jsonStringArray(jsonObject(source.search_config).signalAreas),
+      status: "approved" as const,
+    }] : []),
+  ];
+}
+
 function profileCriteria(strategy: LeadStrategyInput): DiscoveryProfileCriteria {
   return {
     lookbackDays: strategy.lookbackDays,
@@ -104,20 +159,51 @@ function profileCriteria(strategy: LeadStrategyInput): DiscoveryProfileCriteria 
     languages: strategy.languages,
     signalAreas: strategy.signalAreas,
     projectIntents: strategy.projectTypes,
+    sectors: strategy.sectors,
+    organizationTypes: strategy.organizationTypes,
+    services: strategy.services,
+    impactThemes: strategy.impactThemes,
+    keywords: strategy.keywords,
+    projectClues: strategy.projectClues,
+    exclusions: strategy.exclusions,
+    hardExcludedSectors: strategy.hardExcludedSectors,
+    sensitiveSectors: strategy.sensitiveSectors,
+    minimumProjectBudgetEur: strategy.minimumProjectBudgetEur,
+    preferredBudgetMinEur: strategy.preferredBudgetMinEur,
+    preferredBudgetMaxEur: strategy.preferredBudgetMaxEur,
+    largeProjectReviewEur: strategy.largeProjectReviewEur,
   };
 }
 
-function usageOf(telemetry: { inputTokens: number; outputTokens: number; totalTokens: number; durationMs: number; model: string; promptVersion: string; webSearchCallCount?: number; consultedUrls?: string[]; searchQueries?: string[] }) {
+function usageOf(telemetry: {
+  inputTokens: number;
+  cachedInputTokens?: number;
+  outputTokens: number;
+  totalTokens: number;
+  durationMs: number;
+  model: string;
+  promptVersion: string;
+  webSearchCallCount?: number;
+  maxWebSearchCalls?: number | null;
+  consultedUrls?: string[];
+  searchQueries?: string[];
+  pricingVersion?: string;
+  usdToEurRate?: number;
+}) {
   return {
     inputTokens: telemetry.inputTokens,
+    cachedInputTokens: telemetry.cachedInputTokens ?? 0,
     outputTokens: telemetry.outputTokens,
     totalTokens: telemetry.totalTokens,
     durationMs: telemetry.durationMs,
     model: telemetry.model,
     promptVersion: telemetry.promptVersion,
     webSearchCallCount: telemetry.webSearchCallCount ?? 0,
+    maxWebSearchCalls: telemetry.maxWebSearchCalls ?? null,
     consultedUrls: telemetry.consultedUrls ?? [],
     searchQueries: telemetry.searchQueries ?? [],
+    pricingVersion: telemetry.pricingVersion ?? null,
+    usdToEurRate: telemetry.usdToEurRate ?? null,
   };
 }
 
@@ -206,10 +292,19 @@ async function persistAssessment(
     validatedAssessment.dimensions.some((dimension) => dimension.confidence < 0.7)
     || validatedAssessment.commercialFit.budgetEvidenceStatus === "unknown"
     || validatedAssessment.commercialFit.addressableScopeStatus === "unknown"
+    || validatedAssessment.qualificationEvidence.capability.status === "unknown"
+    || validatedAssessment.qualificationEvidence.capability.status === "partial"
+    || validatedAssessment.qualificationEvidence.actionability.status === "unknown"
+    || strategy.capacityStatus === "unknown"
     || !contactRoute.supported
   );
   const policy = scoringPolicyForStrategy(strategy, strategyVersion);
-  const route = routeAssessment(validatedAssessment, phase, hasMaterialGaps, policy, contactRoute);
+  const route = routeAssessment(validatedAssessment, phase, hasMaterialGaps, policy, contactRoute, {
+    hardExcludedSectors: strategy.hardExcludedSectors,
+    sensitiveSectors: strategy.sensitiveSectors,
+    capacityStatus: strategy.capacityStatus,
+    capacityEffectiveUntil: strategy.capacityEffectiveUntil,
+  });
   const policyId = await ensureScorePolicy(admin, workflow.workspace_id, policy);
   const inserted = await admin.from("assessments").insert({
     workspace_id: workflow.workspace_id,
@@ -219,13 +314,24 @@ async function persistAssessment(
     score_policy_id: policyId,
     dimension_results: route.dimensions as unknown as Json,
     commercial_fit: validatedAssessment.commercialFit,
+    qualification_checks: route.qualificationChecks as unknown as Json,
     overall_score: route.score.score,
     overall_confidence: route.score.confidence,
     decision: route.score.decision,
     delivery_route: assessment.deliveryRoute,
     rejection_reason: route.score.hardExclusion ? { hardRule: route.score.hardExclusion } : null,
     evidence_snapshot: assessment.dimensions.flatMap((dimension) => dimension.evidenceRefs),
-    execution_metadata: { automated: true, model: telemetry.model, promptVersion: telemetry.promptVersion, usage: usageOf(telemetry) },
+    execution_metadata: {
+      automated: true,
+      model: telemetry.model,
+      promptVersion: telemetry.promptVersion,
+      strategyVersion,
+      capacity: {
+        status: strategy.capacityStatus,
+        effectiveUntil: strategy.capacityEffectiveUntil,
+      },
+      usage: usageOf(telemetry),
+    },
     assessed_by: null,
   }).select("id").single();
   if (inserted.error) throw inserted.error;
@@ -334,9 +440,63 @@ async function enqueueQualification(admin: AdminClient, workflow: WorkflowRow, o
 async function resolveCandidates(admin: AdminClient, workflow: WorkflowRow, results: ValidatedDiscoveryResult[]) {
   if (!workflow.source_id) throw new Error("Source monitor workflow has no approved source.");
   const opportunityIds: string[] = [];
+  let programmeSignalCount = 0;
   for (const result of results.filter((item) => item.accepted)) {
-    if (!result.canonicalUrl || !result.fingerprint || !result.opportunityKey) continue;
+    if (!result.canonicalUrl || !result.fingerprint) continue;
     const candidate = result.candidate;
+    // Queued resolve retries may carry a normalization snapshot created before
+    // sourceItemId became explicit. Derive the same versioned identity so those
+    // durable workflows resume instead of silently dropping accepted results.
+    const sourceItemId = resolveSignalSourceItemId(candidate, result.canonicalUrl, result.sourceItemId);
+    // This service-only RPC serializes revisions per governed source. It also
+    // reuses an unchanged fingerprint, which makes a failed-stage retry safe
+    // after an earlier candidate was already persisted.
+    const signal = await admin.rpc("persist_automation_signal", {
+      p_workspace_id: workflow.workspace_id,
+      p_source_id: workflow.source_id,
+      p_signal: {
+        sourceItemId,
+        canonicalUrl: result.canonicalUrl,
+        title: candidate.title,
+        rawText: candidate.evidenceExcerpt,
+        publisher: candidate.publisher,
+        publishedAt: candidate.publicationDate ? `${candidate.publicationDate}T00:00:00Z` : null,
+        signalType: signalType(candidate.signalType),
+        organizationMentions: [candidate.organization],
+        extractedFacts: {
+          facts: candidate.facts,
+          projectClues: candidate.projectClues,
+          entitySpecificity: candidate.entitySpecificity,
+          sectorCategories: candidate.sectorCategories,
+          actionabilityStatus: candidate.actionabilityStatus,
+          actionableUntil: candidate.actionableUntil,
+        },
+        extractedInferences: {
+          inferences: candidate.inferences,
+          whyNow: candidate.whyNow,
+          activeFollowOnClue: candidate.activeFollowOnClue,
+        },
+        contentFingerprint: result.fingerprint,
+        processingMetadata: {
+          provenance_status: "confirmed",
+          automated: true,
+          identity_version: "web-v1",
+          entitySpecificity: candidate.entitySpecificity,
+          routing: candidate.entitySpecificity === "programme_only" ? "programme_monitoring" : "opportunity_resolution",
+        },
+      },
+    }).single();
+    if (signal.error) throw signal.error;
+    const signalId = signal.data.signal_id;
+
+    // Funding calls and programmes with no identified commissioning buyer or
+    // concrete applicant stay as source-level monitoring Signals. Creating a
+    // synthetic Organization here would turn a coverage clue into a false lead.
+    if (result.programmeOnly || !result.opportunityKey) {
+      programmeSignalCount += 1;
+      continue;
+    }
+
     const organization = await admin.from("organizations").upsert({
       workspace_id: workflow.workspace_id,
       name: candidate.organization,
@@ -361,35 +521,12 @@ async function resolveCandidates(admin: AdminClient, workflow: WorkflowRow, resu
         missing_fields: ["confirmed budget", "confirmed contact", "procurement route"],
         lifecycle_status: "discovered",
         discovery_key: result.opportunityKey,
-        resolution_metadata: { contact_hint: candidate.contactClue, why_now: candidate.whyNow, exactMatch: true },
+        resolution_metadata: { contact_hint: candidate.contactClue, why_now: candidate.whyNow, exactMatch: true, entitySpecificity: candidate.entitySpecificity },
       }).select("id").single();
       if (opportunity.error) throw opportunity.error;
       opportunityId = opportunity.data.id;
     }
 
-    const existingSignal = await admin.from("signals").select("id").eq("source_id", workflow.source_id).eq("canonical_url", result.canonicalUrl).eq("content_fingerprint", result.fingerprint).maybeSingle();
-    if (existingSignal.error) throw existingSignal.error;
-    let signalId = existingSignal.data?.id;
-    if (!signalId) {
-      const signal = await admin.from("signals").insert({
-        workspace_id: workflow.workspace_id,
-        source_id: workflow.source_id,
-        source_item_id: result.canonicalUrl,
-        canonical_url: result.canonicalUrl,
-        title: candidate.title,
-        raw_text: candidate.evidenceExcerpt,
-        publisher: candidate.publisher,
-        published_at: candidate.publicationDate ? `${candidate.publicationDate}T00:00:00Z` : null,
-        signal_type: signalType(candidate.signalType),
-        organization_mentions: [candidate.organization],
-        extracted_facts: { facts: candidate.facts, projectClues: candidate.projectClues },
-        extracted_inferences: { inferences: candidate.inferences, whyNow: candidate.whyNow },
-        content_fingerprint: result.fingerprint,
-        processing_metadata: { provenance_status: "confirmed", automated: true },
-      }).select("id").single();
-      if (signal.error) throw signal.error;
-      signalId = signal.data.id;
-    }
     const link = await admin.from("opportunity_signals").upsert({
       workspace_id: workflow.workspace_id,
       opportunity_id: opportunityId,
@@ -400,19 +537,52 @@ async function resolveCandidates(admin: AdminClient, workflow: WorkflowRow, resu
     opportunityIds.push(opportunityId);
     await enqueueQualification(admin, workflow, opportunityId, result.fingerprint);
   }
-  return [...new Set(opportunityIds)];
+  return { opportunityIds: [...new Set(opportunityIds)], programmeSignalCount };
 }
 
 async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: WorkflowRow) {
   const { row: strategyRow, strategy } = await loadStrategy(admin, workflow);
+  const searchPlanSnapshot = {
+    ...buildSearchPlanSnapshot(strategy, Number(strategyRow.version ?? 1)),
+    ...workflow.search_plan_snapshot,
+  };
+  const snapshotUpdate = await admin.from("automation_workflow_runs")
+    .update({ search_plan_snapshot: searchPlanSnapshot as unknown as Json })
+    .eq("id", workflow.id);
+  if (snapshotUpdate.error) throw snapshotUpdate.error;
+  workflow.search_plan_snapshot = searchPlanSnapshot;
 
   if (stage.stage === "source_scout") {
-    const telemetry = await runSourceScoutAgent(strategy);
+    const coverageRecords = await loadSourceCoverageRecords(
+      admin,
+      workflow.workspace_id,
+      workflow.coverage_profile_id,
+    );
+    const coverage = buildSourceCoverageContext(strategy.signalAreas, coverageRecords);
+    const scoutSearchPlanSnapshot = { ...workflow.search_plan_snapshot, sourceScoutCoverage: coverage };
+    const coverageSnapshotUpdate = await admin.from("automation_workflow_runs")
+      .update({ search_plan_snapshot: scoutSearchPlanSnapshot as unknown as Json })
+      .eq("id", workflow.id);
+    if (coverageSnapshotUpdate.error) throw coverageSnapshotUpdate.error;
+    workflow.search_plan_snapshot = scoutSearchPlanSnapshot;
+
+    writeAutomationLog("info", "source_scout.started", {
+      workspaceId: workflow.workspace_id,
+      workflowId: workflow.id,
+      stageRunId: stage.id,
+      coveragePolicyVersion: coverage.policyVersion,
+      existingSourceCount: coverage.existingSources.length,
+      rejectedDomainCount: coverage.rejectedDomains.length,
+      uncoveredAreas: coverage.uncoveredAreas,
+      priorityAreas: coverage.priorityAreas,
+    });
+    const telemetry = await runSourceScoutAgent(strategy, coverage);
     enforceWorkflowCost(workflow, telemetry);
+    const diversity = selectDiverseSourceProposals(telemetry.output.proposals, coverage);
     let proposed = 0;
     let rejectedForEvidence = 0;
     let suppressedCount = 0;
-    for (const proposal of telemetry.output.proposals) {
+    for (const proposal of diversity.accepted) {
       if (!validateSourceProposalEvidence(proposal, telemetry.consultedUrls)) {
         rejectedForEvidence += 1;
         continue;
@@ -437,7 +607,11 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
         source_family: proposal.sourceFamily,
         jurisdiction: proposal.jurisdiction,
         base_url: proposal.baseUrl,
-        proposed_config: { signalAreas: proposal.signalAreas, permittedMethod: proposal.policyChecks.permittedMethod },
+        proposed_config: {
+          signalAreas: proposal.signalAreas,
+          primaryCoverageGap: proposal.coverageGap,
+          permittedMethod: proposal.policyChecks.permittedMethod,
+        },
         sample_evidence: proposal.sampleEvidence,
         coverage_rationale: proposal.coverageRationale,
         confidence: proposal.confidence,
@@ -449,6 +623,10 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
           searchQueries: telemetry.searchQueries,
           consultedUrls: telemetry.consultedUrls,
           webSearchCallCount: telemetry.webSearchCallCount,
+          noveltyReason: proposal.noveltyReason,
+          coveragePolicyVersion: coverage.policyVersion,
+          coverageGap: proposal.coverageGap,
+          coverageBefore: coverage.coverageCounts,
         },
         reputation_score: reputation.score,
         source_classification: proposal.classification,
@@ -468,10 +646,30 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
     const completion = sourceScoutCompletion(proposed);
     await complete(admin, stage, {
       proposalCount: proposed,
-      generatedCount: telemetry.output.proposals.length,
+      generatedCount: telemetry.outputValidation?.generatedCount ?? telemetry.output.proposals.length,
+      rejectedForContract: telemetry.outputValidation?.rejectedCount ?? 0,
+      contractIssues: telemetry.outputValidation?.issues ?? [],
       rejectedForEvidence,
       suppressedCount,
+      rejectedForCoverage: diversity.rejected.length,
+      coverageRejectionCounts: diversity.rejectionCounts,
+      uncoveredAreas: coverage.uncoveredAreas,
+      priorityAreas: coverage.priorityAreas,
     }, usageOf(telemetry), telemetry.estimatedCostEur, null, completion.terminalStatus);
+    writeAutomationLog("info", "source_scout.completed", {
+      workspaceId: workflow.workspace_id,
+      workflowId: workflow.id,
+      stageRunId: stage.id,
+      generatedCount: telemetry.outputValidation?.generatedCount ?? telemetry.output.proposals.length,
+      proposedCount: proposed,
+      rejectedForEvidence,
+      rejectedForCoverage: diversity.rejected.length,
+      coverageRejectionCounts: diversity.rejectionCounts,
+      suppressedCount,
+      uncoveredAreas: coverage.uncoveredAreas,
+      searchCallCount: telemetry.webSearchCallCount,
+      estimatedCostEur: telemetry.estimatedCostEur,
+    });
     return { stage: stage.stage, outcome: completion.outcome, count: proposed };
   }
 
@@ -479,30 +677,49 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
     if (!workflow.source_id) throw new Error("Source monitor workflow has no approved source.");
     const source = await admin.from("source_registry").select("name, base_url").eq("id", workflow.source_id).single();
     if (source.error) throw source.error;
+    const resultLimit = Math.max(
+      1,
+      Math.min(5, Number(workflow.search_plan_snapshot.resultLimitOverride ?? strategy.resultLimit)),
+    );
     const telemetry = await runDiscoveryAgent({
       profile: profileCriteria(strategy),
       source: { name: source.data.name, baseUrl: source.data.base_url ?? "" },
-      maxCandidates: Math.max(1, Math.min(5, Number(workflow.search_plan_snapshot.resultLimitOverride ?? strategy.resultLimit))),
+      maxCandidates: resultLimit,
     });
     enforceWorkflowCost(workflow, telemetry);
+    const candidates = telemetry.output.candidates.slice(0, resultLimit);
+    // A source monitor with no candidates is operationally successful: the
+    // source was searched, but it did not yield a promotable signal. Persist a
+    // reason and telemetry so operators can distinguish that from a broken job.
+    const zeroResultReason = candidates.length
+      ? null
+      : telemetry.output.zeroResultReason ?? "The agent found no current concrete project signal in this source.";
     await complete(admin, stage, {
       output: {
         ...telemetry.output,
-        candidates: telemetry.output.candidates.slice(
-          0,
-          Math.max(1, Math.min(5, Number(workflow.search_plan_snapshot.resultLimitOverride ?? strategy.resultLimit))),
-        ),
+        candidates,
+        zeroResultReason,
       },
+      candidateCount: candidates.length,
+      zeroResultReason,
       consultedUrls: telemetry.consultedUrls,
       sourceId: workflow.source_id,
     }, usageOf(telemetry), telemetry.estimatedCostEur, "normalize");
+    writeAutomationLog("info", "source_monitor.completed", {
+      workspaceId: workflow.workspace_id,
+      workflowId: workflow.id,
+      stageRunId: stage.id,
+      sourceId: workflow.source_id,
+      candidateCount: candidates.length,
+      zeroResultReason,
+      searchCallCount: telemetry.webSearchCallCount,
+      consultedUrlCount: telemetry.consultedUrls.length,
+      estimatedCostEur: telemetry.estimatedCostEur,
+    });
     return {
       stage: stage.stage,
       outcome: "continued",
-      count: telemetry.output.candidates.slice(
-        0,
-        Math.max(1, Math.min(5, Number(workflow.search_plan_snapshot.resultLimitOverride ?? strategy.resultLimit))),
-      ).length,
+      count: candidates.length,
     };
   }
 
@@ -511,16 +728,52 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
     const output = input.output as Parameters<typeof validateDiscoveryOutput>[0]["output"];
     const consultedUrls = Array.isArray(input.consultedUrls) ? input.consultedUrls.map(String) : [];
     const results = validateDiscoveryOutput({ output, consultedUrls, profile: profileCriteria(strategy) });
-    await complete(admin, stage, { results }, {}, 0, "resolve");
-    return { stage: stage.stage, outcome: "continued", count: results.filter((result) => result.accepted).length };
+    const acceptedCount = results.filter((result) => result.accepted).length;
+    const rejectionCounts = results.flatMap((result) => result.rejectionReasons).reduce<Record<string, number>>(
+      (counts, reason) => ({ ...counts, [reason]: (counts[reason] ?? 0) + 1 }),
+      {},
+    );
+    // Normalization is the deterministic boundary. Anything rejected here is
+    // kept in the stage snapshot with machine-readable reasons and never reaches
+    // Organization or Opportunity resolution.
+    await complete(admin, stage, {
+      results,
+      generatedCount: results.length,
+      acceptedCount,
+      rejectedCount: results.length - acceptedCount,
+      rejectionCounts,
+    }, {}, 0, "resolve");
+    writeAutomationLog("info", "normalization.completed", {
+      workspaceId: workflow.workspace_id,
+      workflowId: workflow.id,
+      stageRunId: stage.id,
+      generatedCount: results.length,
+      acceptedCount,
+      rejectedCount: results.length - acceptedCount,
+      rejectionCounts,
+    });
+    return { stage: stage.stage, outcome: "continued", count: acceptedCount };
   }
 
   if (stage.stage === "resolve") {
     const results = Array.isArray(stage.input_snapshot.results) ? stage.input_snapshot.results as unknown as ValidatedDiscoveryResult[] : [];
-    const opportunityIds = await resolveCandidates(admin, workflow, results);
-    await complete(admin, stage, { opportunityIds, acceptedCount: opportunityIds.length }, {}, 0, null, "succeeded");
+    const resolved = await resolveCandidates(admin, workflow, results);
+    await complete(admin, stage, {
+      opportunityIds: resolved.opportunityIds,
+      opportunityCount: resolved.opportunityIds.length,
+      programmeSignalCount: resolved.programmeSignalCount,
+      acceptedSignalCount: resolved.opportunityIds.length + resolved.programmeSignalCount,
+    }, {}, 0, null, "succeeded");
     await updateSourceHealth(admin, workflow);
-    return { stage: stage.stage, outcome: "succeeded", count: opportunityIds.length };
+    writeAutomationLog("info", "resolution.completed", {
+      workspaceId: workflow.workspace_id,
+      workflowId: workflow.id,
+      stageRunId: stage.id,
+      acceptedSignalCount: resolved.opportunityIds.length + resolved.programmeSignalCount,
+      programmeSignalCount: resolved.programmeSignalCount,
+      opportunityCount: resolved.opportunityIds.length,
+    });
+    return { stage: stage.stage, outcome: "succeeded", count: resolved.opportunityIds.length + resolved.programmeSignalCount };
   }
 
   if (!workflow.opportunity_id) throw new Error("Qualification stage has no Opportunity.");
@@ -541,7 +794,7 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
         sourceUrls: Array.isArray(finding.source_refs) ? finding.source_refs.map(String) : [],
       }));
     }
-    const telemetry = await runAssessmentAgent(opportunity, findings);
+    const telemetry = await runAssessmentAgent(opportunity, strategy, findings, phase);
     enforceWorkflowCost(workflow, telemetry);
     const allowedEvidenceRefs = [
       ...opportunity.evidence.flatMap((item) => [item.id, item.url]),
@@ -574,7 +827,7 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
     const assessment = stage.input_snapshot.assessment as AutomatedAssessmentOutput;
     const telemetry = await runGapAnalysisAgent(opportunity, assessment);
     enforceWorkflowCost(workflow, telemetry);
-    const questions = ensureRequiredResearchQuestions(opportunity, telemetry.output.questions);
+    const questions = ensureQualificationResearchQuestions(opportunity, assessment, telemetry.output.questions);
     if (questions.length) {
       const insert = await admin.from("research_questions").insert(questions.map((question, index) => ({
         workspace_id: workflow.workspace_id,
@@ -606,69 +859,145 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
       await complete(admin, stage, { findingCount: 0 }, {}, 0, "final_assessment");
       return { stage: stage.stage, outcome: "continued", count: 0 };
     }
-    const telemetry = await runResearchAgent(opportunity, questions, opportunity.evidence);
+    const findingRows = await admin.from("research_findings")
+      .select("question_id,field,status,value,explanation,confidence,source_refs,attempt_summary,created_at")
+      .eq("opportunity_id", workflow.opportunity_id)
+      .order("created_at", { ascending: false });
+    if (findingRows.error) throw findingRows.error;
+    const attemptsByQuestion = new Map<string, number>();
+    for (const finding of findingRows.data ?? []) {
+      attemptsByQuestion.set(finding.question_id, (attemptsByQuestion.get(finding.question_id) ?? 0) + 1);
+    }
+    const attemptsByField = Object.fromEntries((questionRows.data ?? []).map((question) => [
+      question.field.trim().toLowerCase(),
+      attemptsByQuestion.get(question.id) ?? 0,
+    ]));
+    const bundle = selectResearchBundle(questions, attemptsByField);
+    if (!bundle) {
+      for (const question of questionRows.data ?? []) {
+        const updated = await admin.from("research_questions").update({ status: "closed_unknown" }).eq("id", question.id);
+        if (updated.error) throw updated.error;
+      }
+      await complete(admin, stage, {
+        findingCount: 0,
+        unresolvedCount: 0,
+        pass: stage.pass,
+        stopReason: "question_attempts_exhausted",
+      }, {}, 0, "final_assessment");
+      return { stage: stage.stage, outcome: "continued", count: 0 };
+    }
+    const selectedKeys = new Set(bundle.questions.map((question) => question.field.trim().toLowerCase()));
+    const selectedRows = (questionRows.data ?? []).filter((question) => selectedKeys.has(question.field.trim().toLowerCase()));
+    const selectedQuestionIds = new Set(selectedRows.map((question) => question.id));
+    const previousFindings: ResearchFindingOutput[] = (findingRows.data ?? [])
+      .filter((finding) => selectedQuestionIds.has(finding.question_id))
+      .map((finding) => ({
+        field: finding.field,
+        status: finding.status,
+        value: researchValueText(finding.value),
+        explanation: finding.explanation,
+        confidence: Number(finding.confidence),
+        sourceUrls: Array.isArray(finding.source_refs) ? finding.source_refs.map(String) : [],
+      }));
+    const telemetry = await runResearchAgent(opportunity, bundle.questions, opportunity.evidence, {
+      bundleKind: bundle.kind,
+      previousFindings,
+      diversifiedRetry: bundle.diversifiedRetry,
+    });
     enforceWorkflowCost(workflow, telemetry);
-    const validation = validateResearchPass(questions, telemetry.output.findings, telemetry.consultedUrls);
-    for (const finding of validation.acceptedFindings) {
-      const question = questionRows.data?.find(
-        (item) => item.field.trim().toLowerCase() === finding.field.trim().toLowerCase(),
+    const validation = validateResearchPass(bundle.questions, telemetry.output.findings, telemetry.consultedUrls);
+    const acceptedByField = new Map(validation.acceptedFindings.map((finding) => [finding.field.trim().toLowerCase(), finding]));
+    const unresolvedKeys = new Set(validation.unresolvedQuestions.map((question) => question.field.trim().toLowerCase()));
+    const closedQuestionIds = new Set<string>();
+    for (const questionDefinition of bundle.questions) {
+      const question = selectedRows.find(
+        (item) => item.field.trim().toLowerCase() === questionDefinition.field.trim().toLowerCase(),
       );
       if (!question) continue;
+      const finding = acceptedByField.get(questionDefinition.field.trim().toLowerCase());
+      const attemptNumber = (attemptsByQuestion.get(question.id) ?? 0) + 1;
+      const terminalUnknown = !finding || finding.status === "unknown" || finding.status === "not_found";
+      const persistedFinding: ResearchFindingOutput = finding ?? {
+        field: question.field,
+        status: "unknown",
+        value: null,
+        explanation: "This focused pass ended without one complete, citation-valid answer for the requested field.",
+        confidence: 0,
+        sourceUrls: [],
+      };
+      const reportedFinding = telemetry.output.findings.find(
+        (item) => item.field.trim().toLowerCase() === questionDefinition.field.trim().toLowerCase(),
+      );
       const inserted = await admin.from("research_findings").insert({
         workspace_id: workflow.workspace_id,
         opportunity_id: workflow.opportunity_id,
         question_id: question.id,
-        field: finding.field,
-        status: finding.status,
-        value: finding.value as Json | null,
-        explanation: finding.explanation,
-        confidence: finding.confidence,
-        source_refs: finding.sourceUrls,
+        field: persistedFinding.field,
+        status: persistedFinding.status,
+        value: persistedFinding.value as Json | null,
+        explanation: persistedFinding.explanation,
+        confidence: persistedFinding.confidence,
+        source_refs: persistedFinding.sourceUrls,
         attempt_summary: {
           automated: true,
           pass: stage.pass,
+          questionAttempt: attemptNumber,
+          bundle: bundle.kind,
+          diversifiedRetry: bundle.diversifiedRetry,
           searchQueries: telemetry.searchQueries,
           consultedUrls: telemetry.consultedUrls,
+          citedUrls: persistedFinding.sourceUrls,
+          reportedSourceUrls: reportedFinding?.sourceUrls ?? [],
           validationIssues: validation.issues,
+          outcome: unresolvedKeys.has(questionDefinition.field.trim().toLowerCase()) ? "validation_incomplete" : persistedFinding.status,
         },
       });
       if (inserted.error) throw inserted.error;
-      await admin.from("research_questions").update({ status: finding.status === "unknown" ? "closed_unknown" : "resolved" }).eq("id", question.id);
-    }
-    const shouldContinue = validation.unresolvedQuestions.length > 0 && stage.pass < 2;
-    if (!shouldContinue && validation.unresolvedQuestions.length) {
-      for (const question of validation.unresolvedQuestions) {
-        const questionRow = questionRows.data?.find(
-          (item) => item.field.trim().toLowerCase() === question.field.trim().toLowerCase(),
-        );
-        if (!questionRow) continue;
-        const inserted = await admin.from("research_findings").insert({
-          workspace_id: workflow.workspace_id,
-          opportunity_id: workflow.opportunity_id,
-          question_id: questionRow.id,
-          field: question.field,
-          status: "unknown",
-          value: null,
-          explanation: "The bounded automated research passes ended without a complete, citation-valid answer.",
-          confidence: 0,
-          source_refs: [],
-          attempt_summary: {
-            automated: true,
-            pass: stage.pass,
-            stopReason: "max_research_passes",
-            validationIssues: validation.issues,
-            consultedUrls: telemetry.consultedUrls,
-          },
-        });
-        if (inserted.error) throw inserted.error;
-        await admin.from("research_questions").update({ status: "closed_unknown" }).eq("id", questionRow.id);
+      const shouldClose = !terminalUnknown || attemptNumber >= MAX_RESEARCH_ATTEMPTS_PER_QUESTION;
+      if (shouldClose) {
+        const updated = await admin.from("research_questions")
+          .update({ status: terminalUnknown ? "closed_unknown" : "resolved" })
+          .eq("id", question.id);
+        if (updated.error) throw updated.error;
+        closedQuestionIds.add(question.id);
       }
     }
+
+    let remainingOpenCount = (questionRows.data?.length ?? 0) - closedQuestionIds.size;
+    if (stage.pass >= MAX_RESEARCH_PASSES && remainingOpenCount > 0) {
+      for (const question of questionRows.data ?? []) {
+        if (closedQuestionIds.has(question.id)) continue;
+        if (!selectedQuestionIds.has(question.id)) {
+          const inserted = await admin.from("research_findings").insert({
+            workspace_id: workflow.workspace_id,
+            opportunity_id: workflow.opportunity_id,
+            question_id: question.id,
+            field: question.field,
+            status: "unknown",
+            value: null,
+            explanation: "The bounded research workflow reached its pass limit before this remaining question could be established.",
+            confidence: 0,
+            source_refs: [],
+            attempt_summary: { automated: true, pass: stage.pass, stopReason: "max_research_passes" },
+          });
+          if (inserted.error) throw inserted.error;
+        }
+        const updated = await admin.from("research_questions").update({ status: "closed_unknown" }).eq("id", question.id);
+        if (updated.error) throw updated.error;
+      }
+      remainingOpenCount = 0;
+    }
+    const shouldContinue = remainingOpenCount > 0 && stage.pass < MAX_RESEARCH_PASSES;
     await complete(admin, stage, {
       findingCount: validation.acceptedFindings.length,
-      unresolvedCount: validation.unresolvedQuestions.length,
+      unresolvedCount: remainingOpenCount,
       validationIssues: validation.issues,
       pass: stage.pass,
+      bundle: bundle.kind,
+      questionAttempt: bundle.attempt,
+      diversifiedRetry: bundle.diversifiedRetry,
+      consultedSourceCount: telemetry.consultedUrls.length,
+      citedSourceCount: new Set(validation.acceptedFindings.flatMap((finding) => finding.sourceUrls)).size,
     }, usageOf(telemetry), telemetry.estimatedCostEur, shouldContinue ? "research" : "final_assessment");
     return {
       stage: stage.stage,
@@ -692,17 +1021,29 @@ async function processStage(admin: AdminClient, stage: ClaimedStage, workflow: W
         p_why_now: assessment.whyNow,
         p_suggested_next_action: assessment.suggestedNextAction,
         p_route: leadRoute,
+        p_outreach_draft: assessment.outreachDraft as unknown as Json,
         p_review_record: { automatedQualification: true, risks: assessment.risks, contactRoute } as unknown as Json,
       });
       if (lead.error) throw lead.error;
     } else if (route.lifecycleStatus === "needs_review" && route.exceptionKind) {
+      const exceptionSummary = route.exceptionKind === "capability_fit_uncertain"
+        ? "Technical capability fit is partial or not supported by enough evidence."
+        : route.exceptionKind === "delivery_capacity_uncertain"
+          ? "YipYip delivery capacity is unavailable, unknown, or outside its valid-through date."
+          : `Qualification requires review: ${route.exceptionKind.replaceAll('_', ' ')}`;
       const exception = await admin.from("automation_exceptions").insert({
         workspace_id: workflow.workspace_id,
         workflow_run_id: workflow.id,
         opportunity_id: workflow.opportunity_id,
         exception_kind: route.exceptionKind,
-        summary: `Qualification requires review: ${route.exceptionKind.replaceAll('_', ' ')}`,
-        details: { score: route.score, deliveryRoute: assessment.deliveryRoute, contactRoute } as unknown as Json,
+        summary: exceptionSummary,
+        details: {
+          score: route.score,
+          deliveryRoute: assessment.deliveryRoute,
+          contactRoute,
+          capabilityEvidence: route.qualificationChecks.capabilityEvidence,
+          capacityEvidence: route.qualificationChecks.capacityEvidence,
+        } as unknown as Json,
       });
       if (exception.error) throw exception.error;
     }
@@ -733,22 +1074,39 @@ export async function processOneAutomationStage({
     : await admin.rpc("claim_automation_stage", { p_worker_id: workerId, p_lease_seconds: timing.stageLeaseSeconds });
   if (claimed.error) throw claimed.error;
   const stage = claimed.data?.[0] as ClaimedStage | undefined;
-  if (!stage) return { claimed: false as const, dispatched: dispatched.data ?? 0 };
+  if (!stage) {
+    writeAutomationLog("info", "queue.empty", {
+      workspaceId: workspaceId ?? null,
+      dispatched: dispatched.data ?? 0,
+      hint: workspaceId
+        ? "No ready stage exists for this workspace. Queue a source monitor or inspect future available_at values."
+        : "No globally due stage exists.",
+    });
+    return { claimed: false as const, dispatched: dispatched.data ?? 0 };
+  }
+  const workflowResult = await admin.from("automation_workflow_runs").select("*").eq("id", stage.workflow_run_id).single();
+  if (workflowResult.error) throw workflowResult.error;
+  const workflow = workflowResult.data as unknown as WorkflowRow;
   writeAutomationLog("info", "stage.started", {
+    workspaceId: workflow.workspace_id,
     workflowId: stage.workflow_run_id,
     stageRunId: stage.id,
+    workflowKind: workflow.kind,
+    sourceId: workflow.source_id,
+    opportunityId: workflow.opportunity_id,
     stage: stage.stage,
     attempt: stage.attempt,
     pass: stage.pass,
   });
-  const workflowResult = await admin.from("automation_workflow_runs").select("*").eq("id", stage.workflow_run_id).single();
-  if (workflowResult.error) throw workflowResult.error;
-  const workflow = workflowResult.data as unknown as WorkflowRow;
   try {
     const result = await processStage(admin, stage, workflow);
     writeAutomationLog("info", "stage.completed", {
+      workspaceId: workflow.workspace_id,
       workflowId: workflow.id,
       stageRunId: stage.id,
+      workflowKind: workflow.kind,
+      sourceId: workflow.source_id,
+      opportunityId: workflow.opportunity_id,
       stage: stage.stage,
       attempt: stage.attempt,
       pass: stage.pass,
@@ -760,11 +1118,15 @@ export async function processOneAutomationStage({
     const failure = describeAutomationError(error);
     const message = failure.message;
     const costLimit = error instanceof WorkflowCostLimitError;
-    const retryable = !costLimit && automationErrorIsRetryable(failure);
+    const retryable = !costLimit && automationErrorIsRetryable(failure, stage.attempt);
     const errorCode = costLimit ? "cost_limit" : failure.code;
     writeAutomationLog("error", "stage.failed", {
+      workspaceId: workflow.workspace_id,
       workflowId: workflow.id,
       stageRunId: stage.id,
+      workflowKind: workflow.kind,
+      sourceId: workflow.source_id,
+      opportunityId: workflow.opportunity_id,
       stage: stage.stage,
       attempt: stage.attempt,
       pass: stage.pass,
@@ -776,7 +1138,7 @@ export async function processOneAutomationStage({
     const failed = await admin.rpc("fail_automation_stage", {
       p_stage_run_id: stage.id,
       p_lease_token: stage.lease_token,
-      p_error_code: costLimit ? "cost_limit" : retryable ? errorCode : "policy",
+      p_error_code: costLimit ? "cost_limit" : errorCode,
       p_failure_reason: message,
       p_retryable: retryable,
     });

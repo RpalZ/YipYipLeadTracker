@@ -7,10 +7,10 @@ A configurable system for finding and qualifying digital project opportunities b
 | **Item** | **Detail** |
 | --- | --- |
 | **Document status** | Draft for product and engineering alignment |
-| **Version** | 1.9 |
+| **Version** | 2.0 |
 | **Date** | 25 September 2026 |
 | **Primary audience** | YipYip stakeholders, product, engineering, research operations, and business development |
-| **Decision requested** | Confirm MVP scope, scoring policy, review points, and the first source set before implementation |
+| **Decision requested** | Validate whether the corrected live campaign produces 2–3 current organizations worth YipYip's human relevance judgment |
 
 **Product direction**
 
@@ -169,13 +169,13 @@ If the system searches a diverse, configurable source set, links corroborating s
 | **Opportunity** | The canonical representation of a possible underlying project or commercial opening at an organization. | Central entity that aggregates Signals, contacts, facts, findings, assessments, and lifecycle state. |
 | **Assessment** | A versioned judgment of an Opportunity against YipYip profile data, evidence, scoring weights, and thresholds at a point in time. | An Opportunity may have initial, final, and human adjusted Assessments. |
 | **ResearchFinding** | A focused answer, justified inference, conflict, or explicit unknown produced to resolve a question about an Opportunity. | Created only when research adds knowledge beyond the source facts already captured in Signals. |
-| **Lead** | An actionable, reviewable delivery record created when an Opportunity passes final qualification. | References the Opportunity and final Assessment rather than duplicating the whole knowledge graph. |
+| **Lead** | An actionable delivery record created when an Opportunity passes final qualification, or by an explicitly attributed manual override that remains visibly non-qualified. | References the Opportunity and final Assessment rather than duplicating the whole knowledge graph; its origin determines whether it represents automatic qualification or a human commercial choice. |
 
 Candidate is a workflow label rather than a separate persistent entity. An Opportunity is a candidate while it is being evaluated. This avoids a second object that would duplicate Opportunity state.
 
 ## End to End Workflow
 
-0. **Lead Strategy.** An owner or operator edits one versioned Lead Strategy per workspace: geography, languages, sectors, services, project types, budget fit, exclusions, freshness, cadence, and cost limits. Dutch agency-pitch defaults are prefilled but remain editable.
+0. **Lead Strategy.** An owner or operator edits one versioned Lead Strategy per workspace: geography, languages, sectors, YipYip software capabilities, project types, budget fit, hard-excluded and sensitive sectors, search exclusions, effective-dated delivery capacity, freshness, cadence, and cost limits. Dutch agency-pitch defaults are prefilled but remain editable.
 
 1. **Source Scout.** Saving or materially changing the strategy automatically queues a bounded Source Scout. It proposes specific reputable sources with sample evidence, access and policy checks, reputation, confidence, coverage rationale, and operating cost.
 
@@ -183,19 +183,25 @@ Candidate is a workflow label rather than a separate persistent entity. An Oppor
 
 3. **Recurring monitoring.** A Supabase Cron dispatcher claims approved source jobs due at 07:00 Europe/Amsterdam each weekday. A protected server-only worker processes one durable, leased stage per invocation.
 
-4. **Normalization and resolution.** New results are citation/date/URL/policy validated, deterministically deduplicated, and exactly matched to Organizations and Opportunities. Probabilistic merging remains a human exception.
+4. **Normalization and resolution.** New results are citation/date/URL/policy validated and deterministically deduplicated. Organization-specific signals are exactly matched to Organizations and Opportunities. A funding call or programme without an identified commissioning buyer or concrete applicant remains a programme-level Signal for monitoring and never creates a synthetic organization Lead. Probabilistic merging remains a human exception.
 
-5. **First Assessment.** A bounded assessor produces evidence-backed dimension judgments. Application code applies hard exclusions and calculates the configured score; users do not click an Assess button.
+5. **First Assessment.** A bounded assessor produces evidence-backed dimension judgments. Technical capability fit must list both the configured YipYip services supported by the evidence and concrete project requirements that remain unsupported or unclear. This evidence-backed project match is distinct from the operator-owned delivery-capacity setting. Application code applies hard exclusions and calculates the configured score; users do not click an Assess button.
 
-6. **Gap Analysis and focused research.** Only missing information capable of changing qualification, route, or rank becomes a research question. Application policy always injects an actionable-contact-route question unless cited evidence already establishes a named person, responsible team, procurement desk, or official tender channel. The bounded research agent accepts `unknown` and `not_found` as valid terminal outcomes.
+6. **Gap Analysis and focused research.** Only missing information capable of changing qualification, route, or rank becomes a research question. Application policy injects focused questions for unresolved YipYip-addressable commercial scope, capability fit, current actionability, and an actionable contact route. Research executes separate commercial, buyer-access, capability, and timing bundles. Each focused pass is limited to three hosted web-search/tool calls. A first valid `unknown` or `not_found` receives one materially different search pass before becoming terminal; strongly inferred claims require at least two cited sources, while one authoritative primary source may confirm a direct fact.
 
-7. **Final Assessment and routing.** The complete evidence snapshot is rescored. The Router automatically rejects, monitors, qualifies, or creates a Needs-attention exception for borderline confidence, ambiguous identity, sensitive sectors, unusual budgets, partner dependency, conflicting evidence, or an unresolved actionable contact route. Agent confidence cannot override this deterministic gate.
+7. **Final Assessment and routing.** The complete evidence snapshot is rescored and produces evidence-grounded email and cold-call drafts. Only `score.decision = qualify` plus every persisted deterministic gate may create a Lead. Proven poor fit rejects; a strong fit whose public commercial, buyer, capability, or timing evidence remains unavailable after bounded research enters Monitoring; conflicting evidence, sensitive sectors, unusual size, partner dependency, internal capacity ambiguity, review-band scores, and invalid outreach enter Needs attention. Agent confidence cannot override these gates.
 
-8. **Qualified lead review.** Qualified Opportunities automatically create review-ready Leads and appear in the gallery. Humans decide whether YipYip should pursue a finished lead; they do not perform routine discovery or assessment.
+8. **Exception resolution and Lead decisions.** A non-Lead Opportunity enters **Needs attention** only when automation needs a human exception decision. Its drawer exposes a **Resolve** tab: request focused research, pass on the Opportunity, or deliberately create a clearly labelled manual Lead despite overridable gaps. Qualified or manually created Leads instead expose a **Decision** tab where humans decide whether YipYip should start pursuing the finished Lead. People do not perform routine discovery or assessment.
 
-   The implemented Review tab supports **Pursue**, **Pass**, **Request research**, and **Change route**. Decisions are written through one atomic, version-checked RPC with stable reason codes, idempotency keys, immutable events, and role enforcement. Request research queues a fresh bounded qualification workflow at First Assessment; it does not imply that a missing public value will be found.
+   A queued or running automatic qualification workflow is an operational **Progress** state, not an exception. The drawer must state that research is already underway and show how the operator can continue the live queue. It must not require an `automation_exception` record, expose duplicate research controls, or imply that human resolution is needed until deterministic routing creates a genuine terminal exception.
 
-   The implemented `/reviewed` pursuit workspace receives the session shortlist and persistent Lead/review state, grouping projects into **Working on**, **Research running**, **Saved and awaiting decision**, and **Passed**. Shortlist membership remains browser-session-only; Lead status and immutable review history remain authoritative in Supabase.
+   The implemented Decision tab supports **Start pursuing**, **Pass on Lead**, **Research a gap**, and **Change route**. Lead decisions are written through one atomic, version-checked RPC with stable reason codes, idempotency keys, immutable events, and role enforcement. The Opportunity Resolve tab uses a separate atomic RPC so exception state, Opportunity lifecycle, immutable decision history, and any queued qualification workflow change together. Research starts again at First Assessment; it does not imply that a missing public value will be found.
+
+   Each qualifying Lead version stores an immutable outreach snapshot with language, recommended channel, a capped email, a capped cold-call opening, discovery questions, evidence references, and caveats. The Outreach tab can copy these drafts but never sends them.
+
+   The implemented session basket remains accessible from the shared header across Leads, Source Network, and the **Pursuit workspace**. It reconciles saved IDs against current Opportunities so its badge and drawer cannot disagree after resets, quarantine, or data changes. The `/reviewed` route receives that session shortlist and persistent Lead/decision state, grouping projects into **Needs requalification**, **Working on**, **Research running**, **Saved and awaiting decision**, and **Passed**. Historical Leads whose final Assessment was not actually `qualify` are quarantined without changing their Lead status or decision history. Shortlist membership remains browser-session-only; Lead status and immutable history remain authoritative in Supabase.
+
+   During low-volume periods, an owner or reviewer may deliberately **Create manual Lead** from a completed Monitoring, Needs-attention, or Rejected Opportunity. This creates a separately labelled `manual_promotion` Lead version, immutable promotion event, and caveated outreach snapshot without changing the automated lifecycle, score, Assessment, or failed gates. It does not approve pursuit: the Lead still awaits an explicit Decision. A hard-excluded sector or an expired Opportunity without a supported current follow-on remains non-overridable. Manual promotion is a human commercial choice—not a claim that the Opportunity automatically qualified.
 
 9. **Implemented product-validation path.** The public demo simulates this complete workflow in browser `sessionStorage`: editable Lead Strategy, automatic Source Scout, individual approval, accelerated monitoring/assessment/research/routing, qualified leads, an exception, and repeat-run deduplication. It never calls Supabase or OpenAI and never represents simulated evidence as live.
 
@@ -208,7 +214,8 @@ Candidate is a workflow label rather than a separate persistent entity. An Oppor
 | Rejected | Hard rule or threshold fails | Terminal unless policy or evidence changes |
 | Needs research | Promising but decision relevant gaps remain | Questions are resolved or research budget is exhausted |
 | Ready for final assessment | Information is sufficient or explicitly unresolved | Final Assessment is completed |
-| Needs review | A configured human review rule fires | Reviewer approves, rejects, or requests research |
+| Monitoring | Potential fit remains but bounded public research could not establish a required fact | A new source Signal or explicit reassessment restarts qualification |
+| Needs attention | A configured qualification-exception rule fires | Resolve by requesting research, passing on the Opportunity, or creating an explicitly manual Lead when policy permits |
 | Qualified | Final policy passes | Lead is created |
 | Delivered | Lead reaches the configured destination | Feedback and later outcomes remain trackable |
 
@@ -262,27 +269,32 @@ Initial source families may include newsletters, public pitch announcements, fun
 
 #### Autonomous Source Bootstrap — Implemented Vertical Slice
 
-**Implementation status as of 24 September 2026:** `20260924111240_autonomous_lead_workflow.sql` establishes the autonomous pipeline, and `20260924124107_live_operator_controls.sql` adds authenticated workspace onboarding, on-demand operator processing, current-strategy source carry-forward, atomic retry and exception-research controls, duplicate-active-workflow prevention, and bounded multi-pass research history. The `/sources` route is the Source Network. Live automation remains feature-flagged off by default; hosted Cron activation remains a separately configured deployment step. A controlled provider smoke test must pass mandatory web-search and citation validation before any source is approved.
+**Implementation status as of 26 September 2026:** `20260924111240_autonomous_lead_workflow.sql` establishes the autonomous pipeline; `20260924124107_live_operator_controls.sql` adds authenticated operator processing and bounded recovery; `20260925015218_original_brief_alignment.sql` adds complete YipYip policy/capacity strategy fields, persisted qualification checks, guarded Lead creation, idempotent historical quarantine, and immutable outreach snapshots; `20260925034218_focused_multi_source_research.sql` adds the explicit Monitoring lifecycle plus the wider bounded pass contract for focused research; and `20260926163906_split_capability_and_capacity_exceptions.sql` separates technical-fit exceptions from internal delivery-capacity exceptions. The `/sources` route is the Source Network. Source Scout now receives a deterministic inventory of approved, pending, and rejected domains plus per-signal-area coverage before searching; it prioritizes uncovered/lowest-covered areas and independently rejects duplicate domains and concentrated proposal sets. Live automation remains feature-flagged off by default; hosted Cron activation remains a separately configured deployment step. A controlled provider campaign must still prove 2–3 genuinely relevant organizations before the original brief is considered validated.
+
+**Current local validation state:** the full non-billable gate passes and the three previously approved local sources are restored. The active historical Strategy predates the capacity field and therefore correctly restores as `unknown`. The capped live campaign must not start until an owner/operator records factual current capacity and an effective-until date, because unknown or expired capacity cannot auto-qualify under this PRD.
 
 The default onboarding experience offers Dutch agency-pitch criteria already selected. A user may adjust and save the strategy without identifying websites. Saving queues a bounded Source Scout that resolves strategy intent into candidate sources and draft registry configuration.
 
 Adding a specific domain, feed, API, newsletter, or portal remains available only as an advanced source-operations action. It is not required from a normal business user.
 
-For each proposed source, Source Scout returns the Lead Strategy and signal areas it serves, candidate identity, source family, primary/secondary classification, jurisdiction, public endpoint, access method, expected signal types, example public results, observed update frequency, coverage rationale, reputation evidence, confidence, estimated operating cost, and terms, robots, privacy, retention, or ownership concerns.
+For each proposed source, Source Scout returns the Lead Strategy and signal areas it serves, the primary coverage gap it fills, an explicit novelty rationale relative to the current network, candidate identity, source family, primary/secondary classification, jurisdiction, public endpoint, access method, expected signal types, example public results, observed update frequency, coverage rationale, reputation evidence, confidence, estimated operating cost, and terms, robots, privacy, retention, or ownership concerns.
 
 Every proposal starts disabled. The system never enables a production adapter, stores credentials, bypasses access controls, or infers legal permission from public availability. An owner/operator approves each source once before it enters weekday monitoring. Rejected candidates and reasons remain attributable, and the Scout suppresses the same fingerprint until materially new evidence appears.
 
-Source scouting is bounded by query, result, time, and cost limits. It may suggest an adapter type and configuration, but custom adapter implementation and a self-service adapter marketplace remain outside this feature. Lead Strategies and approved sources remain separately versioned so YipYip can change intent without losing source provenance or approval history.
+Source scouting is bounded by query, result, hosted-search-call, time, and cost limits. The current slice permits at most five proposals and six hosted web-search calls per Scout stage. Application code ranks uncovered and least-covered configured signal areas first, then rejects already-active domains, same-run domain duplicates, off-strategy gaps, more than two proposals for one gap, and more than two proposals from one normalized source family. The coverage policy, prior inventory, coverage counts, and rejection reasons are retained in the run snapshots. It may suggest an adapter type and configuration, but custom adapter implementation and a self-service adapter marketplace remain outside this feature. Lead Strategies and approved sources remain separately versioned so YipYip can change intent without losing source provenance or approval history.
 
 #### Autonomous Agent Contract
 
 - Specialized bounded agents perform Source Scout, source monitoring, First Assessment, Gap Analysis, focused Research, and Final Assessment; deterministic application orchestration owns state transitions, scoring, deduplication, limits, and routing.
+- Source Scout uses a strict structural provider contract and a separate bounded application contract. Application code normalizes safe length/item excesses, validates proposals independently, rejects invalid siblings without discarding valid proposals, and records only sanitized issue paths/codes. It also applies deterministic domain novelty and coverage-diversity rules after the agent response; the agent cannot override them. A generated-but-wholly-invalid result is an explicit failure, not a valid zero-result run.
 - Versioned internal Search Plan snapshots replace user-facing Query Packs. Every run records strategy, source, model, prompt, limits, queries, citations, usage, estimated cost, validation outcomes, and stop reason for reproducibility.
 - External OpenAI calls occur outside database transactions. Short persistence steps use workspace-safe records and service-only worker RPCs.
 - Full page bodies and chain-of-thought are not stored. Structured outputs, short excerpts, consulted URLs, usage, validation results, and non-sensitive errors are retained.
 - Agent confidence is evidence metadata, not commercial fit. Application scoring uses the versioned policy; agents cannot qualify their own outputs or set source health.
 - Reputation measures source trust/relevance. Health measures monitor execution reliability. A pure deterministic policy updates health and appends an immutable event after terminal monitor cycles; individual pages do not receive health.
 - Authentication, policy, budget, ambiguous identity, conflicting evidence, unusual budgets, partner dependency, and repeated failures route to an exception rather than an unbounded retry loop.
+- Identical provider-output contract failures receive at most one automatic retry. A second failure is terminal and retains its specific non-sensitive error code for operator diagnosis.
+- Provider cost estimates use a versioned model-price registry, provider-reported cached-input usage, hosted-tool call counts, and an explicit USD-to-EUR planning conversion. An unreviewed model price is a configuration failure before execution, never a silent fallback to another model's rate.
 - Owners/operators may process a workspace queue interactively before hosted Cron is enabled. Reviewers may request a new bounded qualification cycle for a material exception; this restarts assessment, gap analysis, conditional research, final assessment, and routing rather than treating a human click as the missing research itself.
 
 ### Source Scoped Discovery Jobs
@@ -291,7 +303,11 @@ Source scouting is bounded by query, result, time, and cost limits. It may sugge
 
 - Each job shall receive a bounded search space, a time window, a result limit, and a structured Signal output contract.
 
+- Discovery shall not require budget, buyer contact, route, or addressable scope to be known before a concrete current software-project signal can enter assessment. These facts may remain explicitly unknown for bounded research.
+
 - Jobs shall record query or feed position, source configuration version, model version, tool calls, cost, and outcome.
+
+- A valid zero-candidate run shall remain successful, persist a concise zero-result reason, and expose searched URLs/calls plus generated, accepted, rejected, programme-only, and resolved-Opportunity counts to operators.
 
 - One job failing shall not prevent other sources from completing.
 
@@ -305,7 +321,7 @@ Source scouting is bounded by query, result, time, and cost limits. It may sugge
 
 - Separate facts directly present in the source from extracted inferences. Inferred fields require an inference label and confidence.
 
-- Use deterministic keys where possible, including canonical URL, source item ID, normalized domain, and content fingerprint.
+- Use deterministic keys where possible, including canonical URL, source item ID, normalized domain, and content fingerprint. A canonical page URL is evidence provenance and may contain several independent source items; each normalized candidate therefore receives a stable logical source-item ID derived from the page, organization, and initiative identity.
 
 - Use probabilistic matching only after deterministic checks. Candidate matches should consider organization, initiative name, geography, dates, scope, and linked sources.
 
@@ -346,9 +362,9 @@ Gap Analysis determines what the system still needs to know and whether learning
 
 Deep research shall run only when the Opportunity passes the first assessment and one or more material questions remain. An Opportunity with sufficient budget, scope, timing, contact, and evidence may proceed directly to final reassessment.
 
-An inferred contact label alone is not sufficient for automatic qualification. Before final routing, application code—not Gap Analyst discretion—shall require a bounded question for an actionable contact route. A confirmed or strongly inferred answer must include a citation-valid source, a concrete person/team/procurement/tender channel, and confidence of at least 0.65. If the bounded pass remains unknown, the Opportunity enters Needs attention rather than becoming a qualified Lead.
+An inferred contact label alone is not sufficient for automatic qualification. Before final routing, application code—not Gap Analyst discretion—shall require a bounded question for an actionable contact route. A confirmed or strongly inferred answer must include citation-valid evidence, a concrete person/team/procurement/tender channel, and confidence of at least 0.65. If two bounded, diversified attempts remain unknown on an otherwise promising Opportunity, it enters Monitoring rather than becoming a qualified Lead or being mislabeled as poor fit.
 
-- Generate research tasks from prioritized gaps rather than using one generic organization prompt.
+- Generate research tasks from prioritized gaps rather than using one generic organization prompt. Keep commercial, buyer-access, capability, and timing questions in focused bundles of at most three questions.
 
 - Prefer primary sources and record why secondary sources were used when primary evidence is unavailable.
 
@@ -356,7 +372,9 @@ An inferred contact label alone is not sufficient for automatic qualification. B
 
 - Resolve each requested question to confirmed, strongly inferred, contradicted, not found, or unknown.
 
-- Treat unknown as a valid completed state when the configured attempt standard is met.
+- Treat unknown as a valid completed state when the configured attempt standard is met. A first semantic unknown is not terminal for a high-impact question; it receives one diversified pass using a different query angle or source family.
+
+- Record consulted URLs separately from claim citations. Consulted URLs measure search breadth; only cited URLs support a persisted finding. Require corroboration for strongly inferred claims.
 
 - Stop on completion, maximum passes, elapsed time, tool calls, monetary cost, source exhaustion, or repeated no progress.
 
@@ -430,9 +448,11 @@ The score shall use a configurable common scale, initially 0 to 100 overall with
 
 Initial weights and thresholds are hypotheses. They must be tuned with YipYip feedback and a labeled evaluation set, not treated as permanent business truth.
 
-The active MVP policy is `2026-09-24.2`: Social impact 12%, Technical fit 16%, Budget fit 16%, Timing fit 13%, Availability 10%, Delivery fit 16%, Commercial access 10%, and Evidence confidence 7%. The first-stage threshold remains 58, the final threshold 72, the review band 66–76, and the overall confidence floor 0.62.
+The active MVP policy is `2026-09-25.2`: Social impact 12%, Technical fit 16%, Budget fit 16%, Timing fit 13%, Availability 10%, Delivery fit 16%, Commercial access 10%, and Evidence confidence 7%. The first-stage threshold remains 58, the final threshold 72, the review band 66–76, and the overall confidence floor 0.62. In addition, either Social impact or Technical fit must reach 6/10 with confidence of at least 0.65. A high-confidence failure on both axes rejects; promising unresolved evidence is researched and, when public facts remain unavailable after the attempt standard, enters Monitoring. Version `2026-09-25.1` remains immutable on historical Assessments.
 
-Budget fit and Delivery fit are final qualification gates: both require at least 6/10 and confidence of at least 0.65. A confirmed YipYip-addressable value below €30,000 is rejected; €30,000–€50,000 is acceptable but below preference; €50,000–€100,000 receives maximum budget fit; larger supported work declines gradually rather than being automatically rejected. A total procurement value is never treated as YipYip-addressable value without cited scope evidence. Above €250,000, or when a large programme has no bounded YipYip scope, the result enters Needs attention unless delivery is explicitly supported. An evidence-backed capacity or funding proxy may pass the budget gate; an unsupported unknown triggers focused research and, if still unknown, Needs attention.
+Budget fit and Delivery fit are final qualification gates: both require at least 6/10 and confidence of at least 0.65. A confirmed YipYip-addressable value below €30,000 is rejected; €30,000–€50,000 is acceptable but below preference; €50,000–€100,000 receives maximum budget fit; larger supported work declines gradually rather than being automatically rejected. A total procurement value is never treated as YipYip-addressable value without cited scope evidence. Above €250,000, or when a large programme has no bounded YipYip scope, the result enters Needs attention unless delivery is explicitly supported. An evidence-backed capacity or funding proxy may pass the budget gate; an unsupported public-budget unknown triggers focused research and, if still unavailable for an otherwise promising case, Monitoring.
+
+Delivery capacity is deterministic and effective-dated: available is 10/10, limited 6/10, unavailable 2/10 and cannot qualify automatically, while unknown or expired is 5/10 with zero confidence and routes to Needs attention after the bounded workflow. It answers whether YipYip has staffing room, not whether YipYip has the technical skills. Technical capability fit is independently supported, partial, unsupported, or unknown and retains matched services, unresolved requirements, confidence, rationale, and citation-valid evidence references. Capacity-only exceptions use `delivery_capacity_uncertain`; project-skill ambiguity uses `capability_fit_uncertain`. Gambling, video games, retail/e-commerce, and heavy-polluting industry are hard exclusions. Pharma and unresolved ethical concerns are sensitive-sector exceptions rather than automatic rejection. Explicit expired deadlines reject unless a separately cited current follow-on exists.
 
 ## Provenance and Trust
 
@@ -520,6 +540,7 @@ The following logical schemas define the MVP contract. Exact storage types may c
 | evidenceSnapshot | Array | Yes | Signals and findings considered |
 | executionMetadata | Object | Yes | Model, prompt, time, cost, and validation state |
 | commercialFit | Object | Yes | Evidence status, total project value, YipYip-addressable value, scope boundary, confidence, evidence references, and explanation captured for this Assessment |
+| qualificationChecks | Object | Yes | Immutable policy version, ordered gate results, hard rejection, reasons, and `allPassed`; service-only Lead creation requires `allPassed = true` |
 
 ### ResearchFinding Schema
 
@@ -541,7 +562,7 @@ The following logical schemas define the MVP contract. Exact storage types may c
 | **Field** | **Type** | **Required** | **Description** |
 | --- | --- | --- | --- |
 | id and opportunityId | UUID | Yes | Lead and canonical opportunity identifiers |
-| finalAssessmentId | UUID | Yes | Assessment that qualified the lead |
+| finalAssessmentId | UUID | Yes | Final Assessment referenced by the Lead; it qualified an automated Lead or records the unchanged evidence state for a manual promotion |
 | whyNow | String | Yes | Evidence based timing explanation |
 | suggestedNextAction | String | Yes | Recommended action with inference label where needed |
 | primaryContactId | UUID | No | Best known contact |
@@ -549,6 +570,9 @@ The following logical schemas define the MVP contract. Exact storage types may c
 | status | Enum | Yes | Draft, in review, approved, delivered, accepted, rejected, or archived |
 | reviewRecord | Object | When reviewed | Reviewer, decision, edits, and time |
 | deliveryMetadata | Object | When delivered | Destination, time, version, and idempotency key |
+| outreachDraft | Object | For new qualified versions | Immutable language, channel, ≤120-word email, ≤60-word call opening, up to three questions, evidence references, and caveats; never implies sending |
+| origin | Enum | Yes | `automated` or `manual_promotion`; manual origin must never be displayed as automatic qualification |
+| promotion attribution | Object | For manual promotion | Reviewer, time, stable reason, optional note, unchanged automated status/decision, unresolved checks, and primary evidence reference |
 
 ### Lead Strategy and Source Network Data Contract — Implemented
 
@@ -557,8 +581,9 @@ The following logical schemas define the MVP contract. Exact storage types may c
 | **Identity** | id, workspaceId, profileKey, name, description, status, isDefault, version, effectiveAt, createdBy, changedBy, changeNote |
 | **Signal areas** | pitches, newsletters, funding, strategy, hiring, consultations, announcements, regional networks, and future configured families |
 | **Targets** | sectors, organizationTypes, organizationTargets, regions, languages, projectTypes, technicalThemes, impactThemes |
+| **Policy** | hardExcludedSectors, sensitiveSectors, and search exclusions kept as distinct concepts |
 | **Search intent** | keywords, negativeTerms, projectClues, lookback, evidencePreferences |
-| **Operating envelope** | weekday cadence, lookback, resultLimit, runCostLimit, dailyCostLimit, timezone, monitorHour, automationEnabled, nextScoutAt, €30k minimum, €50k–€100k preferred range, and €250k large-project review threshold |
+| **Operating envelope** | weekday cadence, lookback, resultLimit, runCostLimit, dailyCostLimit, timezone, monitorHour, automationEnabled, nextScoutAt, €30k minimum, €50k–€100k preferred range, €250k large-project review threshold, and effective-dated capacity status/note |
 | **Internal search plan** | immutable strategy/source/model/prompt versions, normalized search criteria, limits, and generated time; never user-managed |
 | **Source candidates** | strategyId, origin, candidate identity, source family, classification, jurisdiction, baseUrl, public access, update frequency, proposedConfig, sampleEvidence, rationale, reputation, confidence, estimated cost, policy checks, suppression fingerprint, review decision, and optional resolvedSourceId |
 | **Approved mappings** | profileId, sourceId, optional sourceCandidateId, signalAreas, linkRationale, linkedBy, createdAt |
@@ -572,7 +597,7 @@ Strategy and Source Network data is workspace-scoped and protected by RLS. Works
 | **SearchPlanSnapshot** | Immutable Lead Strategy, approved source, model, prompt, criteria, limits, and scheduled-time snapshot |
 | **WorkflowRun** | Workspace, kind, idempotency key, trigger, current stage, status, strategy/source/Opportunity, costs, stop reason, and timestamps |
 | **WorkflowStageRun** | Stage, status, attempt, availability, lease token/owner/expiry, input/output snapshot, usage, cost, errors, and next action |
-| **AutomationException** | Ambiguous entity, low confidence, borderline score, sensitive sector, unusual budget, partner dependency, conflicting evidence, policy/cost failure, or repeated failure requiring a person |
+| **AutomationException** | Ambiguous entity, low confidence, borderline score, sensitive sector, unusual budget, partner dependency, conflicting evidence, unresolved commercial/technical-capability/delivery-capacity/actionability/contact evidence, invalid outreach, qualification-policy mismatch, policy/cost failure, or repeated failure requiring a person |
 | **SourceHealthEvent** | Immutable previous/current monitor health, policy version, reason, telemetry metrics, optional workflow, actor, and evaluation time |
 
 Runtime tables are workspace-scoped, protected by explicit grants and RLS, and use one active leased stage per workflow. Same-workspace composite references protect strategies, sources, Signals, Organizations, Opportunities, Assessments, Research Questions/Findings, and Leads. Repeated unchanged results create no duplicate Signal, Opportunity, Assessment, or Lead.
@@ -613,8 +638,11 @@ This is an operations and system contract for exact sources. It is not the norma
 | FR 14 | Require one-time owner/operator source approval, then create independent weekday monitors automatically | Must · implemented vertical slice |
 | FR 15 | Orchestrate bounded source monitoring, normalization, exact resolution, first assessment, material-gap research, final assessment, and automatic routing as durable stages | Must · implemented vertical slice |
 | FR 16 | Show qualified Leads by default and route only genuine ambiguity/risk to Needs attention | Must · implemented vertical slice |
-| FR 17 | Inject and research an evidence-backed actionable contact route before automatic qualification; route bounded unknowns to Needs attention | Must · implemented vertical slice |
+| FR 17 | Inject and research an evidence-backed actionable contact route before automatic qualification; route bounded unavailable public evidence to Monitoring | Must · implemented vertical slice |
 | FR 18 | Provide a dedicated pursuit workspace for saved, research-pending, pursued, and passed Leads | Must · implemented vertical slice |
+| FR 19 | Require a final `qualify` decision and persisted passing qualification checks before service-only Lead creation; quarantine historical mismatches without rewriting history | Must · implemented vertical slice |
+| FR 20 | Generate an immutable, evidence-referenced email and cold-call draft for each newly qualified Lead version without sending it | Must · implemented vertical slice |
+| FR 21 | Allow owners/reviewers to manually promote an eligible completed Opportunity into the pursuit pipeline while preserving and visibly distinguishing the unchanged automated decision | Must · implemented vertical slice |
 
 ### Nonfunctional Requirements
 
@@ -629,8 +657,9 @@ This is an operations and system contract for exact sources. It is not the norma
 | **Cost control** | Each stage enforces per run and aggregate budgets for model, search, storage, and external services. |
 | **Scalability** | Jobs are independently queueable and safe to parallelize by source and Opportunity within configured rate limits. |
 | **Explainability** | Scores, rejections, inferences, unknowns, and human overrides remain visible and attributable. |
-| **Accessibility** | The review interface supports keyboard navigation, readable contrast, meaningful labels, and non color status indicators. |
-| **Localization** | Dates, currency, language, and organization names preserve source meaning while supporting normalized comparison. |
+| **Accessibility** | The review interface supports keyboard navigation, a comfortable 16px+ reading scale, readable light/dark contrast, meaningful labels, and non-color status indicators. |
+| **Localization** | The application shell and product controls are available in English and Dutch. Dates, currency, language, organization names, and source evidence preserve source meaning while supporting normalized comparison. |
+| **Appearance preferences** | Users can switch between light and dark themes without losing workflow state. Theme and interface-language preferences persist in first-party cookies and apply before page rendering to avoid a mismatched first paint. |
 
 ## Architecture and Processing Controls
 
@@ -659,15 +688,15 @@ This is an operations and system contract for exact sources. It is not the norma
 
 3. The application validator checks terminal status, provenance, confidence, explanation, and coverage of every requested question.
 
-4. If valid, the pass is accepted even when one or more questions are unknown.
+4. If valid, supported answers close their questions. A first-pass semantic unknown or not-found answer remains open for one diversified continuation; its attempt is still preserved.
 
-5. If incomplete and budget remains, the orchestrator continues only unresolved questions using prior run state or an explicit summary.
+5. If incomplete and budget remains, the orchestrator continues only unresolved questions in one focused evidence bundle using prior findings and explicit source-family guidance.
 
 6. If a stop limit is reached, the orchestrator closes remaining questions as incomplete or unknown according to policy and routes the Opportunity appropriately.
 
 ### Idempotency and Versioning
 
-- Use source ID plus source item ID or canonical URL plus content fingerprint as the primary Signal idempotency key.
+- Use source ID plus logical source item ID and revision for item history, with source ID plus canonical URL and content fingerprint for unchanged-run idempotency. Allocate revisions atomically so several candidates from one roundup page and concurrent retries cannot collide.
 
 - Use Opportunity identity and final Assessment version as part of the Lead idempotency key.
 
@@ -685,8 +714,8 @@ This is an operations and system contract for exact sources. It is not the norma
 | --- | --- | --- |
 | Source approval | Source Scout proposal, new adapter, or material access method change | Source operations—not the business user—approve or reject exact sources, access, retention, ownership, schedules, and operational limits before enablement |
 | Entity resolution | Ambiguous merge, high value Opportunity, or conflicting organization identity | Confirm, merge, split, or defer |
-| Qualification | Borderline score, low confidence, exceptional budget, partner required, or sensitive sector | Approve, reject, request research, or change route |
-| Lead delivery | MVP default for every new Lead | Verify summary, evidence, risks, contact, and next action |
+| Qualification exception | Borderline score, low confidence, exceptional budget, partner required, or sensitive sector | Request research, pass on the Opportunity, or create a manual Lead with visible unresolved gates |
+| Lead pursuit decision | MVP default for every new Lead | Start pursuing, pass on the Lead, research a gap, or change route after inspecting summary, evidence, risks, contact, and next action |
 | Policy change | New score weights, thresholds, hard rules, or YipYip profile version | Review impact on benchmark cases before activation |
 
 ### Reviewer Experience
@@ -701,7 +730,13 @@ This is an operations and system contract for exact sources. It is not the norma
 
 - Capture reviewer decision time and free text feedback without requiring unnecessary fields.
 
-- Persist Pursue, Pass, Request research, and route changes against an exact Lead version. Pass, research, and route changes require stable reason codes; Other additionally requires a note. Owners/reviewers decide pursuit and route, owners/operators/reviewers may request research, and viewers remain read-only.
+- Use different user-facing surfaces for qualification exceptions and finished Leads. **Resolve** applies to a non-Lead Opportunity; **Decision** applies to a Lead. Never use the generic word “review” as the only CTA for either job.
+
+- Persist Start pursuing, Pass on Lead, Research a gap, and route changes against an exact Lead version. Pass, research, and route changes require stable reason codes; Other additionally requires a note. Owners/reviewers decide pursuit and route, owners/operators/reviewers may request research, and viewers remain read-only.
+
+- Persist Opportunity-level Request research and Pass actions atomically with the open exception, lifecycle transition, immutable event, and optional qualification workflow. Operators may request research; only owners/reviewers may pass.
+
+- Permit owners/reviewers to create an eligible manual Lead with a stable reason and idempotency key. Preserve the automated lifecycle and Assessment, show unresolved gates and a human-override label, block hard-excluded/expired cases, retain immutable promotion attribution, and require a separate pursuit Decision.
 
 ## Observability and Evaluation
 
@@ -779,7 +814,11 @@ This is an operations and system contract for exact sources. It is not the norma
 
 - Two level research completion control with unknown as a valid result
 
-- Final reassessment, ranking, and a human review queue
+- Final reassessment, ranking, a qualification-exception queue, and a separate finished-Lead decision workspace
+
+- Deterministic qualification checks requiring a final `qualify` decision, current actionability, YipYip fit, addressable commercial evidence, contact route, current capacity, and valid outreach evidence
+
+- Immutable, evidence-grounded first-email and cold-call drafts on each new qualified Lead version; copy only, never send
 
 - Editable Lead records with source links and export to one agreed destination
 
@@ -854,23 +893,28 @@ The first source set should test distinct signal mechanisms rather than several 
 ### Autonomous Lead Engine
 
 - An owner/operator can edit and save one active Lead Strategy. Saving or materially changing it automatically queues a bounded Source Scout workflow.
-- Source Scout proposals include classification, access method, samples, freshness, reputation evidence, policy concerns, coverage rationale, confidence, and estimated cost. Each source requires one explicit approval; unchanged rejected proposals remain suppressed.
+- The strategy versions YipYip-specific software capabilities, hard-excluded sectors, sensitive sectors, search exclusions, commercial thresholds, and effective-dated delivery capacity. Every Search Plan and Assessment records that version.
+- Source Scout proposals include classification, access method, samples, freshness, reputation evidence, policy concerns, coverage rationale, coverage gap, novelty rationale, confidence, and estimated cost. The Scout sees the bounded current-network inventory, prioritizes missing coverage, and proposals still pass deterministic domain and concentration checks. Each source requires one explicit approval; unchanged rejected proposals remain suppressed.
 - Approving a source immediately creates an enabled recurring monitor. A frequent dispatcher schedules weekday work at 07:00 in the configured timezone and never creates duplicate cycles for the same scheduled time.
 - The protected worker accepts only the server automation secret/service credential, processes one leased stage per invocation, reclaims expired leases, retries transient failure with bounded backoff, and routes terminal policy/budget/repeated failures to exceptions.
 - Uncited, non-HTTPS, stale, restricted, low-confidence, or deterministic duplicate candidates cannot create a Signal or Opportunity.
 - An approved source can produce a Signal, exact Organization/Opportunity match, initial Assessment, prioritized gaps, bounded findings, final Assessment, and review-ready qualified Lead without an Assess button.
-- A Gap Analyst omission cannot skip contact research: application policy injects the actionable-contact-route question, citation-valid findings appear in the Lead, and a bounded unknown routes to Needs attention.
-- Low-score candidates are rejected, evidence-sufficient candidates skip research, unknown findings terminate, and borderline/ambiguous/partner-dependent candidates enter Needs attention.
+- A Gap Analyst omission cannot skip contact research: application policy injects the actionable-contact-route question, citation-valid findings appear in the Lead, and an otherwise promising case with two bounded unknown attempts routes to Monitoring.
+- Evidence-backed poor fits reject, evidence-sufficient candidates skip research, first-pass semantic unknowns receive one diversified continuation, and borderline/ambiguous/partner-dependent candidates enter Needs attention. A promising Opportunity is not denied research solely because missing evidence depressed its provisional weighted score; unavailable public evidence after bounded research enters Monitoring.
+- A programme-level funding call without an identified commissioning buyer or concrete applicant persists as a Signal only and cannot create an Organization, Opportunity, Assessment, or Lead.
+- A final `research` or `review` decision cannot fall through to qualified. Service-only Lead creation independently verifies `decision = qualify`, no hard rejection, `qualificationChecks.allPassed = true`, and a valid outreach snapshot.
 - Repeating unchanged source results creates no duplicate Signal, Opportunity, Assessment, or Lead.
 - Every terminal source-monitor cycle updates deterministic health and appends one immutable policy-versioned health event. Reputation remains separate from health; individual cited pages receive neither job health nor synthetic trust scores.
 - Automated tests mock every agent boundary. Hosted Cron activation and a live OpenAI smoke test remain explicit operator-only actions requiring separate authorization and configured secrets.
 
 ### Interactive MVP Demo
 
+- The demo Source Network uses the same persistent information architecture as the live slice: automation summary, worker status, full Lead Strategy fields, weekday control, approval inbox, approved monitors, activity, and exceptions. It must not teach a separate wizard or omit settings that materially affect live qualification.
 - A visitor starts with zero sources, runs, Opportunities, or Leads; edits the prefilled Lead Strategy; and watches Source Scout begin automatically.
 - The visitor approves sources individually. The demo then advances through monitoring, normalization, resolution, first assessment, gap analysis, focused research, final assessment, and routing without further clicks.
 - Finished results include qualified Leads and a genuine Needs-attention exception with complete score/evidence snapshots; the gallery defaults to qualified Leads.
-- Saving a Lead and choosing **Review saved leads** opens `/reviewed`; Pursue moves it to Working on, research requests remain visible as running, and Pass retains it in history.
+- Qualified demo Leads include visibly simulated email and call drafts, while historical/no-draft versions show an explicit unavailable state.
+- Saving an Opportunity and choosing **Open pursuit workspace** opens `/reviewed`; Start pursuing moves a Lead to Working on, research requests remain visible as running, and Pass retains it in history.
 - Demo state remains isolated to the browser tab and never writes to Supabase or calls OpenAI. Simulated sources/evidence are visibly distinguished from live results.
 - Repeating the weekday simulation exact-matches existing Signals/Opportunities and creates no duplicate Assessment or Lead; reset returns a truly empty state.
 
@@ -903,10 +947,14 @@ The first source set should test distinct signal mechanisms rather than several 
 ### Lead Delivery and Review
 
 - Only Opportunities that pass final policy and required review become Leads.
+- Historical current Leads whose final Assessment is not `qualify` remain immutable but are excluded from the qualified gallery and grouped under Needs requalification until a later passing reassessment creates a new version.
 
 - Each Lead contains why now, timing, budget status, fit reasoning, delivery route, risks, next action, sources, score, and confidence.
+- Each new qualified Lead version contains an immutable citation-valid email and call draft with language, channel, evidence links, caveats, and copy controls. The system never sends it.
 
-- The review screen shows initial and final score changes and the evidence responsible for the change.
+- The Decision screen shows initial and final score changes and the evidence responsible for the change; the Resolve screen shows the exact open exception and unresolved gates.
+
+- Leads, Source Network, Pursuit workspace, login, shortlist, and the deterministic demo share the same English/Dutch interface and light/dark visual tokens; source-authored evidence remains untranslated.
 
 - A reviewer can approve, reject, request research, correct a field, or change route with an attributable reason.
 
@@ -926,4 +974,4 @@ The first source set should test distinct signal mechanisms rather than several 
 
 ### Release Decision
 
-The MVP is ready for controlled use when the acceptance criteria above pass on the agreed source set, the evaluation set shows acceptable evidence validity and qualification precision, and YipYip approves the profile, thresholds, review policy, and delivery format. Production expansion should follow measured gaps in coverage or actionability rather than source count alone.
+The original brief is validated only when a controlled campaign yields 2–3 distinct, current organizations with a supported YipYip fit axis, realistic addressable budget, valid contact route, current actionability, and both outreach drafts for YipYip's human relevance judgment. Otherwise the hypothesis remains unproven and hosted Cron stays disabled. The MVP is ready for broader controlled use when the remaining acceptance criteria pass on the agreed source set, the evaluation set shows acceptable evidence validity and qualification precision, and YipYip approves the profile, thresholds, review policy, and delivery format.

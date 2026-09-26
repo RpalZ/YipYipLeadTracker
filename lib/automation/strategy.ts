@@ -1,5 +1,7 @@
 import type { SourceProposal } from "@/lib/automation/contracts";
 
+export type DeliveryCapacityStatus = "available" | "limited" | "unavailable" | "unknown";
+
 export interface LeadStrategyInput {
   workspaceId: string;
   name: string;
@@ -14,7 +16,12 @@ export interface LeadStrategyInput {
   impactThemes: string[];
   keywords: string[];
   exclusions: string[];
+  hardExcludedSectors: string[];
+  sensitiveSectors: string[];
   projectClues: string[];
+  capacityStatus: DeliveryCapacityStatus;
+  capacityEffectiveUntil: string | null;
+  capacityNote: string | null;
   minimumProjectBudgetEur: number;
   preferredBudgetMinEur: number;
   preferredBudgetMaxEur: number;
@@ -37,11 +44,23 @@ export const defaultLeadStrategy = (workspaceId = "demo"): LeadStrategyInput => 
   regions: ["Netherlands"],
   languages: ["nl", "en"],
   projectTypes: ["websites", "digital products", "platforms", "apps", "redesigns", "campaigns"],
-  services: ["strategy", "service design", "product design", "software delivery"],
+  services: [
+    "custom web applications",
+    "custom mobile applications",
+    "back-end systems",
+    "digital platforms",
+    "APIs and integrations",
+    "high-volume engineering",
+  ],
   impactThemes: ["accessibility", "public value", "inclusion"],
   keywords: ["digital strategy", "platform", "redesign", "service journey", "agency review"],
   exclusions: ["completed", "awarded", "closed pitch", "unrelated vacancy"],
+  hardExcludedSectors: ["gambling", "video games", "retail/e-commerce", "heavy-polluting industry"],
+  sensitiveSectors: ["pharma", "unresolved ethical concerns"],
   projectClues: ["approved roadmap", "new programme", "supplier exploration", "funding award"],
+  capacityStatus: "unknown",
+  capacityEffectiveUntil: null,
+  capacityNote: null,
   minimumProjectBudgetEur: 30_000,
   preferredBudgetMinEur: 50_000,
   preferredBudgetMaxEur: 100_000,
@@ -67,8 +86,20 @@ export function buildSearchPlanSnapshot(strategy: LeadStrategyInput, version: nu
     signalAreas: normalizeList(strategy.signalAreas),
     projectTypes: normalizeList(strategy.projectTypes),
     services: normalizeList(strategy.services),
+    sectors: normalizeList(strategy.sectors),
+    organizationTypes: normalizeList(strategy.organizationTypes),
+    impactThemes: normalizeList(strategy.impactThemes),
     positiveTerms: normalizeList([...strategy.keywords, ...strategy.projectClues]),
     exclusions: normalizeList(strategy.exclusions),
+    sectorPolicy: {
+      hardExcluded: normalizeList(strategy.hardExcludedSectors),
+      sensitive: normalizeList(strategy.sensitiveSectors),
+    },
+    capacity: {
+      status: strategy.capacityStatus,
+      effectiveUntil: strategy.capacityEffectiveUntil,
+      note: strategy.capacityNote,
+    },
     commercialFit: {
       minimumProjectBudgetEur: Math.max(0, strategy.minimumProjectBudgetEur),
       preferredBudgetMinEur: Math.max(strategy.minimumProjectBudgetEur, strategy.preferredBudgetMinEur),

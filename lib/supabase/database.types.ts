@@ -7,31 +7,6 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
       assessments: {
@@ -51,6 +26,7 @@ export type Database = {
           overall_confidence: number
           overall_score: number
           profile_version: string
+          qualification_checks: Json
           rejection_reason: Json | null
           score_policy_id: string
           workspace_id: string
@@ -71,6 +47,7 @@ export type Database = {
           overall_confidence: number
           overall_score: number
           profile_version: string
+          qualification_checks?: Json
           rejection_reason?: Json | null
           score_policy_id: string
           workspace_id: string
@@ -91,6 +68,7 @@ export type Database = {
           overall_confidence?: number
           overall_score?: number
           profile_version?: string
+          qualification_checks?: Json
           rejection_reason?: Json | null
           score_policy_id?: string
           workspace_id?: string
@@ -526,6 +504,9 @@ export type Database = {
           allow_source_proposals: boolean
           automation_enabled: boolean
           cadence: string
+          capacity_effective_until: string | null
+          capacity_note: string | null
+          capacity_status: string
           change_note: string | null
           changed_by: string | null
           cost_limit: number
@@ -535,6 +516,7 @@ export type Database = {
           description: string | null
           effective_at: string
           evidence_preferences: Json
+          hard_excluded_sectors: string[]
           id: string
           impact_themes: string[]
           is_default: boolean
@@ -560,6 +542,7 @@ export type Database = {
           result_limit: number
           scout_interval: string
           sectors: string[]
+          sensitive_sectors: string[]
           signal_areas: Database["public"]["Enums"]["discovery_signal_area"][]
           status: Database["public"]["Enums"]["coverage_profile_status"]
           technical_themes: string[]
@@ -573,6 +556,9 @@ export type Database = {
           allow_source_proposals?: boolean
           automation_enabled?: boolean
           cadence?: string
+          capacity_effective_until?: string | null
+          capacity_note?: string | null
+          capacity_status?: string
           change_note?: string | null
           changed_by?: string | null
           cost_limit?: number
@@ -582,6 +568,7 @@ export type Database = {
           description?: string | null
           effective_at?: string
           evidence_preferences?: Json
+          hard_excluded_sectors?: string[]
           id?: string
           impact_themes?: string[]
           is_default?: boolean
@@ -607,6 +594,7 @@ export type Database = {
           result_limit?: number
           scout_interval?: string
           sectors?: string[]
+          sensitive_sectors?: string[]
           signal_areas: Database["public"]["Enums"]["discovery_signal_area"][]
           status?: Database["public"]["Enums"]["coverage_profile_status"]
           technical_themes?: string[]
@@ -620,6 +608,9 @@ export type Database = {
           allow_source_proposals?: boolean
           automation_enabled?: boolean
           cadence?: string
+          capacity_effective_until?: string | null
+          capacity_note?: string | null
+          capacity_status?: string
           change_note?: string | null
           changed_by?: string | null
           cost_limit?: number
@@ -629,6 +620,7 @@ export type Database = {
           description?: string | null
           effective_at?: string
           evidence_preferences?: Json
+          hard_excluded_sectors?: string[]
           id?: string
           impact_themes?: string[]
           is_default?: boolean
@@ -654,6 +646,7 @@ export type Database = {
           result_limit?: number
           scout_interval?: string
           sectors?: string[]
+          sensitive_sectors?: string[]
           signal_areas?: Database["public"]["Enums"]["discovery_signal_area"][]
           status?: Database["public"]["Enums"]["coverage_profile_status"]
           technical_themes?: string[]
@@ -1235,7 +1228,14 @@ export type Database = {
           final_assessment_id: string
           id: string
           opportunity_id: string
+          origin: string
+          outreach_draft: Json | null
           primary_contact_id: string | null
+          promoted_at: string | null
+          promoted_by: string | null
+          promotion_notes: string | null
+          promotion_reason: string | null
+          promotion_snapshot: Json
           review_record: Json | null
           route: Database["public"]["Enums"]["lead_route"]
           status: Database["public"]["Enums"]["lead_status"]
@@ -1251,7 +1251,14 @@ export type Database = {
           final_assessment_id: string
           id?: string
           opportunity_id: string
+          origin?: string
+          outreach_draft?: Json | null
           primary_contact_id?: string | null
+          promoted_at?: string | null
+          promoted_by?: string | null
+          promotion_notes?: string | null
+          promotion_reason?: string | null
+          promotion_snapshot?: Json
           review_record?: Json | null
           route: Database["public"]["Enums"]["lead_route"]
           status?: Database["public"]["Enums"]["lead_status"]
@@ -1267,7 +1274,14 @@ export type Database = {
           final_assessment_id?: string
           id?: string
           opportunity_id?: string
+          origin?: string
+          outreach_draft?: Json | null
           primary_contact_id?: string | null
+          promoted_at?: string | null
+          promoted_by?: string | null
+          promotion_notes?: string | null
+          promotion_reason?: string | null
+          promotion_snapshot?: Json
           review_record?: Json | null
           route?: Database["public"]["Enums"]["lead_route"]
           status?: Database["public"]["Enums"]["lead_status"]
@@ -2089,7 +2103,12 @@ export type Database = {
           first_seen_at: string | null
           id: string | null
           last_assessed_at: string | null
+          latest_assessment_id: string | null
+          latest_assessment_type:
+            | Database["public"]["Enums"]["assessment_type"]
+            | null
           lead_id: string | null
+          lead_origin: string | null
           lead_research_pending: boolean | null
           lead_status: Database["public"]["Enums"]["lead_status"] | null
           lead_version: number | null
@@ -2100,7 +2119,15 @@ export type Database = {
           maturity_stage: Database["public"]["Enums"]["maturity_stage"] | null
           missing_fields: string[] | null
           organization: string | null
+          outreach_draft: Json | null
           primary_signal_type: string | null
+          promoted_at: string | null
+          promoted_by: string | null
+          promotion_notes: string | null
+          promotion_reason: string | null
+          promotion_snapshot: Json | null
+          qualification_checks: Json | null
+          qualification_exception: Json | null
           review_record: Json | null
           route: string | null
           score: number | null
@@ -2225,6 +2252,7 @@ export type Database = {
         Args: {
           p_final_assessment_id: string
           p_opportunity_id: string
+          p_outreach_draft: Json
           p_review_record: Json
           p_route: Database["public"]["Enums"]["lead_route"]
           p_suggested_next_action: string
@@ -2264,6 +2292,30 @@ export type Database = {
         }
         Returns: undefined
       }
+      persist_automation_signal: {
+        Args: { p_signal: Json; p_source_id: string; p_workspace_id: string }
+        Returns: {
+          created: boolean
+          signal_id: string
+          signal_revision: number
+        }[]
+      }
+      promote_opportunity_to_pursuit: {
+        Args: {
+          p_expected_assessment_id: string
+          p_idempotency_key: string
+          p_language: string
+          p_notes: string
+          p_opportunity_id: string
+          p_reason_code: string
+          p_route: Database["public"]["Enums"]["lead_route"]
+        }
+        Returns: Json
+      }
+      quarantine_qualification_policy_mismatches: {
+        Args: never
+        Returns: number
+      }
       queue_source_monitor_now: {
         Args: {
           p_cost_limit_override?: number
@@ -2271,6 +2323,17 @@ export type Database = {
           p_source_id: string
         }
         Returns: string
+      }
+      resolve_opportunity_attention: {
+        Args: {
+          p_action: string
+          p_exception_id: string
+          p_idempotency_key: string
+          p_notes: string
+          p_opportunity_id: string
+          p_reason_code: string
+        }
+        Returns: Json
       }
       retry_automation_workflow: {
         Args: { p_workflow_id: string }
@@ -2391,6 +2454,7 @@ export type Database = {
         | "rejected"
         | "needs_research"
         | "ready_for_final_assessment"
+        | "monitoring"
         | "needs_review"
         | "qualified"
         | "delivered"
@@ -2545,9 +2609,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       assessment_decision: [
@@ -2635,6 +2696,7 @@ export const Constants = {
         "rejected",
         "needs_research",
         "ready_for_final_assessment",
+        "monitoring",
         "needs_review",
         "qualified",
         "delivered",

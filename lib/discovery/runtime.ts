@@ -10,9 +10,16 @@ import {
   type DiscoveryAgentOutput,
   type DiscoveryProfileCriteria,
 } from "@/lib/discovery/contracts";
-import { estimateDiscoveryCostEur } from "@/lib/discovery/cost";
+import {
+  OPENAI_PRICING_VERSION,
+  cachedInputTokensFromUsage,
+  estimateOpenAICostEur,
+  resolveOpenAIModelPricing,
+  resolveUsdToEurRate,
+} from "@/lib/discovery/cost";
 import { resolveDiscoveryRuntimeConfig } from "@/lib/discovery/runtime-config";
-import { collectHttpsUrls } from "@/lib/discovery/validation";
+import { buildDiscoveryInstructions } from "@/lib/discovery/prompt";
+import { collectWebSearchEvidenceUrls, collectWebSearchQueries } from "@/lib/discovery/validation";
 import { resolveAutomationExecutionTiming } from "@/lib/automation/runtime-config";
 
 export interface DiscoveryAgentTelemetry {
@@ -21,6 +28,7 @@ export interface DiscoveryAgentTelemetry {
   searchQueries: string[];
   webSearchCallCount: number;
   inputTokens: number;
+  cachedInputTokens: number;
   outputTokens: number;
   totalTokens: number;
   estimatedCostEur: number;
@@ -28,6 +36,8 @@ export interface DiscoveryAgentTelemetry {
   durationMs: number;
   model: string;
   promptVersion: string;
+  pricingVersion: string;
+  usdToEurRate: number;
 }
 
 export function discoveryIsEnabled(): boolean {
@@ -43,14 +53,6 @@ export function discoveryRuntimeReadiness(): { ready: boolean; reason: string | 
   return configuration.ready
     ? { ready: true, reason: null }
     : { ready: false, reason: configuration.reason };
-}
-
-function buildInstructions(profile: DiscoveryProfileCriteria, maxCandidates: number): string {
-  return `You discover concrete pre-procurement opportunities for a Dutch digital agency.
-
-You MUST call web search at least once. Search broadly but return at most ${maxCandidates} genuinely supported candidate${maxCandidates === 1 ? "" : "s"}; zero candidates is valid. Keep the final structured output under approximately ${DEFAULT_DISCOVERY_LIMITS.maxOutputTokens} tokens. Focus on ${profile.region}, languages ${profile.languages.join(" and ")}, signal areas ${profile.signalAreas.join(", ")}, and project intent ${profile.projectIntents.join(", ")}. Use a ${profile.lookbackDays}-day lookback.
-
-Exclude completed or awarded projects, closed pitches, unrelated vacancies, and restricted social-platform scraping. A hiring item only qualifies when it contains a concrete external digital-project clue. Use canonical HTTPS URLs. Separate source facts from your inferences. Keep excerpts short and source-supported. Do not fabricate missing budgets, contacts, timing, dates, or projects. Use null or explicit unknowns where the schema permits it. Never output chain-of-thought or complete webpage bodies.`;
 }
 
 function isWebSearchCall(item: unknown): boolean {
@@ -80,6 +82,8 @@ export async function runDiscoveryAgent({
     OPENAI_BASE_URL: process.env.OPENAI_BASE_URL,
   });
   if (!configuration.ready) throw new Error(configuration.reason);
+  resolveOpenAIModelPricing(model);
+  const usdToEurRate = resolveUsdToEurRate();
   setTracingDisabled(true);
 
   const modelProvider = new OpenAIProvider({
@@ -97,7 +101,7 @@ export async function runDiscoveryAgent({
 
   const agent = new Agent({
     name: "YipYip Opportunity Discovery",
-    instructions: `${buildInstructions(profile, Math.max(1, Math.min(DEFAULT_DISCOVERY_LIMITS.maxCandidates, maxCandidates)))}${source ? `\n\nThis is a source-scoped monitor. Search ${source.name} at ${source.baseUrl} and use that source as the canonical evidence origin. Do not broaden into an unrestricted general search.` : ""}`,
+    instructions: `${buildDiscoveryInstructions(profile, Math.max(1, Math.min(DEFAULT_DISCOVERY_LIMITS.maxCandidates, maxCandidates)))}${source ? `\n\nThis is a source-scoped monitor. Search ${source.name} at ${source.baseUrl} and use that source as the canonical evidence origin. Use several relevant query angles within the configured source instead of requiring one page to contain every qualification fact. Do not broaden into an unrestricted general search.` : ""}`,
     model,
     tools: [webSearchTool({ searchContextSize: "low", userLocation: { type: "approximate", country: "NL" } })],
     outputType: discoveryAgentOutputSchema,
@@ -113,19 +117,30 @@ export async function runDiscoveryAgent({
     },
   });
 
-  const enforceEstimatedCost = (inputTokens: number, outputTokens: number) => {
-    const estimated = estimateDiscoveryCostEur({ inputTokens, outputTokens, webSearchCalls: observedSearchCalls });
+  const enforceEstimatedCost = (
+    inputTokens: number,
+    outputTokens: number,
+    inputTokenDetails: ReadonlyArray<Readonly<Record<string, number>>>,
+  ) => {
+    const estimated = estimateOpenAICostEur({
+      model,
+      inputTokens,
+      cachedInputTokens: cachedInputTokensFromUsage(inputTokenDetails),
+      outputTokens,
+      webSearchCalls: observedSearchCalls,
+      usdToEurRate,
+    });
     if (estimated >= DEFAULT_DISCOVERY_LIMITS.estimatedCostEur) {
       controller.abort(new Error("Discovery agent reached the estimated cost envelope."));
     }
   };
 
   agent.on("agent_start", (context) => {
-    enforceEstimatedCost(context.usage.inputTokens, context.usage.outputTokens);
+    enforceEstimatedCost(context.usage.inputTokens, context.usage.outputTokens, context.usage.inputTokensDetails);
   });
   agent.on("agent_tool_start", (context, tool) => {
     if (tool.name.startsWith("web_search")) observedSearchCalls += 1;
-    enforceEstimatedCost(context.usage.inputTokens, context.usage.outputTokens);
+    enforceEstimatedCost(context.usage.inputTokens, context.usage.outputTokens, context.usage.inputTokensDetails);
   });
 
   try {
@@ -140,23 +155,33 @@ export async function runDiscoveryAgent({
     const webSearchCallCount = Math.max(observedSearchCalls, result.newItems.filter(isWebSearchCall).length);
     if (webSearchCallCount < 1) throw new Error("Discovery agent completed without the required web-search call.");
 
-    const consultedUrls = collectHttpsUrls([
+    const rawSearchArtifacts = [
       result.newItems.map((item) => item.toJSON()),
       result.rawResponses,
-    ]);
+    ];
+    // Only provider web-search sources/citations belong in the evidence allow-
+    // list. URLs repeated by the model in its final JSON do not prove that the
+    // page was actually consulted.
+    const consultedUrls = collectWebSearchEvidenceUrls(rawSearchArtifacts);
+    const providerQueries = collectWebSearchQueries(rawSearchArtifacts);
     const usage = result.state.usage;
-    const estimatedCostEur = estimateDiscoveryCostEur({
+    const cachedInputTokens = cachedInputTokensFromUsage(usage.inputTokensDetails);
+    const estimatedCostEur = estimateOpenAICostEur({
+      model,
       inputTokens: usage.inputTokens,
+      cachedInputTokens,
       outputTokens: usage.outputTokens,
       webSearchCalls: webSearchCallCount,
+      usdToEurRate,
     });
 
     return {
       output: result.finalOutput,
       consultedUrls,
-      searchQueries: result.finalOutput.searchQueries,
+      searchQueries: [...new Set([...providerQueries, ...result.finalOutput.searchQueries])],
       webSearchCallCount,
       inputTokens: usage.inputTokens,
+      cachedInputTokens,
       outputTokens: usage.outputTokens,
       totalTokens: usage.totalTokens,
       estimatedCostEur,
@@ -164,6 +189,8 @@ export async function runDiscoveryAgent({
       durationMs: Math.round(performance.now() - startedAt),
       model,
       promptVersion: DISCOVERY_PROMPT_VERSION,
+      pricingVersion: OPENAI_PRICING_VERSION,
+      usdToEurRate,
     };
   } catch (error) {
     if (controller.signal.aborted) {

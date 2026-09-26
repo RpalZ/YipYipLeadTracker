@@ -23,6 +23,7 @@ export type LifecycleStatus =
   | "assessing"
   | "needs_research"
   | "ready_for_final_assessment"
+  | "monitoring"
   | "needs_review"
   | "qualified"
   | "rejected"
@@ -66,6 +67,8 @@ export interface OpportunityView {
   confidence: number | null;
   firstSeenAt: string;
   lastAssessedAt: string | null;
+  latestAssessmentId?: string | null;
+  latestAssessmentType?: "initial" | "final" | "human_adjusted" | null;
   signalCount: number;
   primarySignalType: string;
   location: string;
@@ -82,9 +85,22 @@ export interface OpportunityView {
   evidence: EvidenceItem[];
   missingFields: string[];
   commercialFit?: CommercialFitView | null;
+  qualificationChecks?: QualificationChecksView | null;
+  qualificationException?: QualificationExceptionView | null;
+  attentionException?: AttentionExceptionView | null;
+  qualificationResearchPending?: boolean;
   lead?: LeadReviewView | null;
   reviewCapability?: "decide" | "research_only" | "read_only";
   reviewHistory?: ReviewEventView[];
+  researchCoverage?: ResearchCoverageView | null;
+}
+
+export interface ResearchCoverageView {
+  passCount: number;
+  queryCount: number;
+  consultedSourceCount: number;
+  citedSourceCount: number;
+  bundles: string[];
 }
 
 export interface CommercialFitView {
@@ -92,6 +108,7 @@ export interface CommercialFitView {
   totalProjectValueEur: number | null;
   addressableScopeValueEur: number | null;
   addressableScopeStatus: "bounded" | "unbounded" | "unknown";
+  scopeBasis: "dedicated_package" | "explicit_lot" | "whole_procurement" | "proxy" | "unknown";
   confidence: number;
   explanation: string;
 }
@@ -102,6 +119,61 @@ export interface LeadReviewView {
   status: "draft" | "in_review" | "approved" | "delivered" | "accepted" | "rejected" | "archived";
   route: DeliveryRoute;
   pendingResearch: boolean;
+  outreachDraft: OutreachDraftView | null;
+  origin: "automated" | "manual_promotion";
+  promotedAt: string | null;
+  promotionReason: string | null;
+  promotionNotes: string | null;
+}
+
+export interface OutreachDraftView {
+  language: "nl" | "en";
+  recommendedChannel: "email" | "call" | "tender_portal" | "procurement_desk";
+  emailSubject: string;
+  emailBody: string;
+  callOpening: string;
+  discoveryQuestions: string[];
+  evidenceRefs: string[];
+  caveats: string[];
+}
+
+export interface QualificationChecksView {
+  policyVersion: string;
+  allPassed: boolean;
+  hardRejection: string | null;
+  checks: Record<string, "passed" | "rejected" | "unresolved" | "review">;
+  reasons: string[];
+  capabilityEvidence: CapabilityEvidenceView | null;
+  capacityEvidence: CapacityEvidenceView | null;
+}
+
+export interface CapabilityEvidenceView {
+  status: "supported" | "partial" | "unsupported" | "unknown";
+  matchedServices: string[];
+  unmatchedRequirements: string[];
+  confidence: number;
+  evidenceRefs: string[];
+  explanation: string;
+}
+
+export interface CapacityEvidenceView {
+  status: "available" | "limited" | "unavailable" | "unknown";
+  effectiveUntil: string | null;
+  expired: boolean;
+  score: number;
+  confidence: number;
+}
+
+export interface QualificationExceptionView {
+  id: string;
+  kind: string;
+  summary: string;
+  status: "open" | "resolved" | "dismissed";
+}
+
+export interface AttentionExceptionView extends QualificationExceptionView {
+  details: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface ReviewEventView {
@@ -174,6 +246,11 @@ export interface LeadStrategy {
   services: string[];
   keywords: string[];
   exclusions: string[];
+  hardExcludedSectors: string[];
+  sensitiveSectors: string[];
+  capacityStatus: "available" | "limited" | "unavailable" | "unknown";
+  capacityEffectiveUntil: string | null;
+  capacityNote: string | null;
   minimumProjectBudgetEur: number;
   preferredBudgetMinEur: number;
   preferredBudgetMaxEur: number;
@@ -195,6 +272,8 @@ export interface SourceCandidate {
   baseUrl: string;
   classification: "primary" | "secondary" | "aggregator" | null;
   coverageRationale: string;
+  coverageGap: string | null;
+  noveltyReason: string | null;
   confidence: number;
   reputationScore: number | null;
   publicAccess: boolean;
@@ -220,6 +299,7 @@ export interface ApprovedSource {
 export interface AutomationCycle {
   id: string;
   kind: "source_scout" | "source_monitor" | "opportunity_qualification";
+  sourceName: string | null;
   status: "queued" | "running" | "waiting_approval" | "succeeded" | "failed" | "cancelled";
   currentStage: string;
   estimatedCost: number;
@@ -227,6 +307,19 @@ export interface AutomationCycle {
   failureReason: string | null;
   createdAt: string;
   finishedAt: string | null;
+  discoveryDiagnostics: DiscoveryActivityDiagnostics | null;
+}
+
+export interface DiscoveryActivityDiagnostics {
+  generatedCandidates: number;
+  acceptedCandidates: number;
+  rejectedCandidates: number;
+  programmeSignals: number;
+  opportunitiesCreatedOrMatched: number;
+  searchCalls: number;
+  consultedUrls: number;
+  rejectionCounts: Record<string, number>;
+  zeroResultReason: string | null;
 }
 
 export interface AutomationException {
