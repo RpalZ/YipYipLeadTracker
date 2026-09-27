@@ -7,6 +7,7 @@ import { defaultLeadStrategy } from "../lib/automation/strategy";
 import type { DiscoveryAgentOutput } from "../lib/discovery/contracts";
 import { DEFAULT_DUTCH_AGENCY_PROFILE, validateDiscoveryOutput } from "../lib/discovery/validation";
 import { dimensionNames } from "../lib/domain";
+import { evaluateConversationReadiness } from "../lib/readiness";
 
 const sourceUrl = "https://example.nl/current-digital-lot";
 const discovery: DiscoveryAgentOutput = {
@@ -76,6 +77,16 @@ function finalAssessment(): AutomatedAssessmentOutput {
     },
   };
 }
+
+test("invalid shadow evidence cannot change delivery routing or normal intake", () => {
+  const assessment = finalAssessment();
+  const before = routeAssessment(assessment, "final", false);
+  const withShadow = { ...assessment, conversationReadiness: { invented: true } };
+  assert.equal(evaluateConversationReadiness(withShadow.conversationReadiness, { allowedEvidenceRefs: [sourceUrl], evaluatedAt: "2026-09-27", minimumBudgetEur: 30000 }).status, "not_evaluated");
+  assert.deepEqual(routeAssessment(withShadow, "final", false), before);
+  const args = { output: discovery, consultedUrls: [sourceUrl], profile: DEFAULT_DUTCH_AGENCY_PROFILE, now: new Date("2026-09-25") };
+  assert.deepEqual(validateDiscoveryOutput({ ...args, output: { ...discovery, candidates: discovery.candidates.map((candidate) => ({ ...candidate, buyingIntent: { status: "unknown", confidence: 0, evidenceRefs: [], rationale: "Not known" } })) } }).map((row) => [row.accepted, row.rejectionReasons]), validateDiscoveryOutput(args).map((row) => [row.accepted, row.rejectionReasons]));
+});
 
 test("mocked monitor-to-qualified-Lead path preserves evidence and outreach", () => {
   const [normalized] = validateDiscoveryOutput({

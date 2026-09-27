@@ -139,7 +139,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
 
             <section className="automation-activity">
               <div className="section-heading"><div><span className="section-label">{copy.sources.auditable}</span><h2>{copy.sources.recent}</h2></div><span>{data.cycles.length} {copy.sources.cycles}</span></div>
-              {data.cycles.length ? <div className="activity-list">{data.cycles.map((cycle) => (
+              {data.cycles.length ? <div className="activity-list source-history-scroll" role="region" aria-label={copy.sources.recent} tabIndex={0}>{data.cycles.map((cycle) => (
                 <article key={cycle.id}>
                   <span className={`activity-status ${cycle.status}`} />
                   <div>
@@ -159,7 +159,7 @@ export default async function SourcesPage({ searchParams }: { searchParams: Prom
               ))}</div> : <div className="sources-empty compact"><h3>{copy.sources.noActivity}</h3><p>{copy.sources.noActivityText}</p></div>}
             </section>
 
-            {data.exceptions.length ? <section className="automation-exceptions"><div className="section-heading"><div><span className="section-label">{copy.sources.humanAttention}</span><h2>{copy.sources.exceptions}</h2></div><span>{data.summary.openExceptions} {copy.common.open.toLowerCase()}</span></div>{data.exceptions.map((item) => <article key={item.id}><span>{exceptionLabel(item.kind)}</span><strong>{item.summary}</strong><small>{formatDate(item.createdAt)} · {item.status}</small>{item.opportunityId ? <Link href={`/?lead=${item.opportunityId}&tab=review`}>{copy.sources.resolve}</Link> : null}{item.status === "open" && selectedWorkspace.role !== "viewer" ? <ExceptionReviewForm workspaceId={selectedWorkspace.id} exceptionId={item.id} /> : null}</article>)}</section> : null}
+            {data.exceptions.length ? <section className="automation-exceptions"><div className="section-heading"><div><span className="section-label">{copy.sources.humanAttention}</span><h2>{copy.sources.exceptions}</h2></div><span>{data.summary.openExceptions} {copy.common.open.toLowerCase()}</span></div><div className="source-history-scroll" role="region" aria-label={copy.sources.exceptions} tabIndex={0}>{data.exceptions.map((item) => <article key={item.id}><span>{exceptionLabel(item.kind)}</span><strong>{item.summary}</strong><small>{formatDate(item.createdAt)} · {item.status}</small>{item.opportunityId ? <Link href={`/?lead=${item.opportunityId}&tab=review`}>{copy.sources.resolve}</Link> : null}{item.status === "open" && selectedWorkspace.role !== "viewer" ? <ExceptionReviewForm workspaceId={selectedWorkspace.id} exceptionId={item.id} /> : null}</article>)}</div></section> : null}
           </>
         )}
       </main>

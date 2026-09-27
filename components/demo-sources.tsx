@@ -302,7 +302,7 @@ export function DemoSources() {
         <section className="automation-activity">
           <div className="section-heading"><div><span className="section-label">{copy.sources.auditable}</span><h2>{copy.sources.recent}</h2></div><span>{state.cycles.length} {copy.sources.cycles}</span></div>
           {state.activity.length ? (
-            <div className="activity-list">
+            <div className="activity-list source-history-scroll" role="region" aria-label={copy.sources.recent} tabIndex={0}>
               {state.activity.map((item) => (
                 <article key={item.id}>
                   <span className={`activity-status ${item.status === "attention" ? "waiting_approval" : "succeeded"}`} />
@@ -317,9 +317,11 @@ export function DemoSources() {
         {attentionCount ? (
           <section className="automation-exceptions">
             <div className="section-heading"><div><span className="section-label">{copy.sources.humanAttention}</span><h2>{copy.sources.exceptions}</h2></div><span>{attentionCount} {copy.common.open.toLowerCase()}</span></div>
-            {state.opportunities.filter((item) => item.lifecycleStatus === "needs_review").map((item) => (
-              <article key={item.id}><span>{item.attentionException?.kind.replaceAll("_", " ") ?? copy.common.needsAttention}</span><strong>{item.title}</strong><small>{item.attentionException?.summary}</small><Link href={`/?demo=empty&lead=${item.id}&tab=review`}>{copy.sources.resolve}</Link></article>
-            ))}
+            <div className="source-history-scroll" role="region" aria-label={copy.sources.exceptions} tabIndex={0}>
+              {state.opportunities.filter((item) => item.lifecycleStatus === "needs_review").map((item) => (
+                <article key={item.id}><span>{item.attentionException?.kind.replaceAll("_", " ") ?? copy.common.needsAttention}</span><strong>{item.title}</strong><small>{item.attentionException?.summary}</small><Link href={`/?demo=empty&lead=${item.id}&tab=review`}>{copy.sources.resolve}</Link></article>
+              ))}
+            </div>
           </section>
         ) : null}
       </main>

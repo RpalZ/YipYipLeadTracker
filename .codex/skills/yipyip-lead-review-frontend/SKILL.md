@@ -5,6 +5,8 @@ description: Build or review YipYip's lead gallery, artifact-style lead drawer, 
 
 # YipYip Lead Review Frontend
 
+For the Readiness experiment, retain the secondary feature-gated view and label-first behavior. Automated recommendations stay hidden until independent submission or explicit opt-out; do not claim full blinding. Experimental readiness never unlocks pursuit/outreach. Demo labels remain explicitly simulated and session-only; expired/superseded evaluations are not current recommendations.
+
 Create a calm review surface that makes a small ranked set of leads understandable before exposing deep evidence.
 
 ## Ground implementation

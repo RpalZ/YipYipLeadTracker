@@ -14,6 +14,8 @@ import {
 } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { ReadinessExperiment } from "./readiness-experiment";
+import { readinessCopy } from "@/lib/readiness-copy";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 
 import { reviewLeadAction } from "@/app/actions/lead-review";
@@ -917,10 +919,12 @@ function LeadReviewPanel({
 }
 
 export function Dashboard({ data }: { data: DashboardData }) {
-  const { copy } = useInterfacePreferences();
+  const { copy, locale } = useInterfacePreferences();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const experimentAvailable = data.readinessEnabled || data.mode === "demo";
+  const experimentOpen = experimentAvailable && searchParams.get("view") === "readiness";
   const [filter, setFilter] = useState<FilterKey>("pursuit");
   const [query, setQuery] = useState("");
   const [basketOpen, setBasketOpen] = useState(false);
@@ -1073,6 +1077,12 @@ export function Dashboard({ data }: { data: DashboardData }) {
       </header>
 
       <main id="top">
+        {experimentAvailable && <button className="secondary-action readiness-toggle" type="button" onClick={() => {
+          const params = new URLSearchParams(currentSearch); params.delete("lead"); params.delete("tab");
+          if (experimentOpen) params.delete("view"); else params.set("view", "readiness");
+          router.push(`${pathname}?${params.toString()}`, { scroll: false });
+        }}>{experimentOpen ? readinessCopy[locale].back : readinessCopy[locale].title}</button>}
+        {experimentOpen ? <ReadinessExperiment opportunities={opportunities} demo={data.mode === "demo"} viewerId={data.readinessViewerId} notice={data.readinessNotice} /> : <>
         <section className="board-heading">
           <div>
             <span className="section-label">{copy.dashboard.eyebrow}</span>
@@ -1156,9 +1166,10 @@ export function Dashboard({ data }: { data: DashboardData }) {
             )}
           </AnimatePresence>
         </section>
+        </>}
       </main>
 
-      {!basketOpen && selectedLead ? (
+      {!experimentOpen && !basketOpen && selectedLead ? (
         <LeadDrawer
           key={selectedLead.id}
           opportunity={selectedLead}

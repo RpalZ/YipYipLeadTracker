@@ -6,6 +6,8 @@ The product contract is [PRD.md](./PRD.md). The editable workflow is [docs/yipyi
 
 ## Implemented vertical slice
 
+- Optional **Readiness experiment** (`/?view=readiness`): evidence-backed conversation readiness beside unchanged delivery qualification. Defaults off for authenticated workspaces; sample/empty demos provide explicitly simulated, session-only labels. See [shadow evaluation guide](docs/READINESS_EXPERIMENT.md).
+
 - Responsive lead gallery that defaults to qualified Leads, with Monitoring and Needs-attention views.
 - URL-backed artifact drawer at `/?lead=<opportunity-id>` and a shared session shortlist drawer that remains available across Leads, Source Network, and the Pursuit workspace. Stale saved IDs are removed when their Opportunities no longer exist, keeping the badge and drawer count aligned.
 - Authenticated **Source Network** at `/sources?workspace=<uuid>` with one editable, versioned Lead Strategy.

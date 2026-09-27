@@ -1,6 +1,6 @@
 # YipYip Project Context
 
-Last updated: 26 September 2026
+Last updated: 27 September 2026
 
 ## Product
 
@@ -8,11 +8,15 @@ YipYip is an autonomous lead engine. A workspace configures one editable Lead St
 
 ## Implemented
 
+- Feature-off shadow conversation-readiness experiment: `lib/readiness.ts` deterministic policy, immutable evaluation/label tables, current-version owner/reviewer label RPC, EN/NL label-first comparison at `/?view=readiness`, and session-only simulated demo labels. Existing delivery routing, scoring, Leads and outreach are unchanged. Offline `--shadow` reports default read-only; `--persist-local` writes only shadow rows at a loopback Supabase URL. See `docs/READINESS_EXPERIMENT.md`.
+
 - Next.js 16 App Router application, JetBrains Mono at a 16px+ reading scale, semantic light/dark themes, an English/Dutch interface, responsive qualified-Lead gallery, URL-backed modal Opportunity drawer, evidence tabs, and a shared session shortlist across Leads, Source Network, and the Pursuit workspace. Theme and locale are first-party cookie preferences applied in the root server layout; source-authored evidence remains in its original language. Basket state is reconciled against the current Opportunity set so removed, reset, or quarantined items cannot leave a stale badge count.
 - Authenticated Source Network at `/sources?workspace=<uuid>` with explicit workspace selection, editable/versioned Lead Strategy, automation summary, source approval inbox, approved monitors, workflow history, and exceptions.
+- Live and demo Source Network activity/exception lists scroll independently within a viewport-aware height cap; section headings and counts remain outside the scrolling regions, which are labelled and keyboard-focusable.
 - Browser-local `/sources?demo=empty` simulation: the Source Network now mirrors the live persistent operations screen and reuses its complete Lead Strategy fields, summary, runner, approval inbox, approved monitors, activity, and exceptions. Save strategy → automatic Source Scout → individual approval → automatic monitor/normalize/resolve/assess/gap/research/reassess/route → two qualified Leads plus one Needs-attention exception. Repeat monitoring demonstrates exact-match deduplication. It never calls Supabase or OpenAI.
 - `20260924111240_autonomous_lead_workflow.sql`: Lead Strategy automation fields, legacy query-pack archival, source reputation separate from health, candidates, weekday jobs, workflow/stage leases, exceptions, role-scoped RPCs, same-workspace qualification references, and service-only dispatch/worker functions.
 - `20260924124107_live_operator_controls.sql`: authenticated workspace onboarding, current-strategy source carry-forward, superseded-work cancellation, one-active-workflow constraints, atomic retry/exception-research RPCs, bounded research pass identity, workspace-scoped service claims, and operator source-monitor queueing.
+- `20260927002527_preserve_research_pass_on_retry.sql`: failure retries retain the original stage pass while incrementing attempt. Repairs only unstarted queued retries with an unambiguous exact-input failed origin and an unused destination identity; finished history, budgets and backoff are preserved. This prevents research continuation from colliding with an already completed earlier pass.
 - `20260924154613_correct_empty_source_scout_state.sql`: repairs historical zero-proposal Source Scout workflows that were incorrectly left at `waiting_approval`; future zero-reviewable runs finish successfully with an explicit empty result.
 - Timezone-aware weekday scheduling at local 07:00, including Amsterdam DST; frequent Cron is expected to call a protected Next.js endpoint, which dispatches due work and processes one stage.
 - Specialized bounded OpenAI agents for Source Scout, source monitoring, First/Final Assessment, Gap Analysis, and focused Research. Application code validates evidence, calculates scores, handles idempotency/retries, and routes outcomes.
@@ -88,6 +92,10 @@ YipYip is an autonomous lead engine. A workspace configures one editable Lead St
 
 ## Known limitations
 
+- Readiness is disabled for live workspaces by default and has no paid/provider rollout validation. The 16 existing local Opportunities all lack a complete structured readiness input (13 missing-schema finals, three without final Assessment). Explicit legacy mappings retain available facts but do not fabricate missing buying intent/software-need classifications. These are not evaluated, not failed business opportunities. No independent human labels have been imported.
+
+- The read-only 27 September policy comparison in `docs/EVALUATION_2026-09-27.md` inspected 16 local Opportunities, 88 Assessments, and 523 ResearchFindings. Twelve latest finals had complete comparable gate snapshots; reducing only the effective score hurdle from 77 to 72 produced no qualifications in either variant (scores 44–62). All twelve had a commercial gate blocker and eleven a capability blocker. This supersedes historical suggestions that no live end-to-end evidence exists, but does not establish human relevance, citation correctness, or a successful 2–3-organization campaign. Three stored Leads comprise one legacy automated and two manual versions. The safe next quality step is evidence/capability labeling, not simply lowering score thresholds.
+
 - A fresh local workspace with three approved sources was observed to complete six source-monitor cycles with hosted search but zero generated candidates. RLS was verified independently: the owner can read all seven workflows and nineteen stages. The discovery prompt was too conservative because it asked for plausible budget fit before assessment; it now retains concrete current project signals with unknown qualification facts. The adjusted prompt has mocked coverage but has not been exercised through a new billable monitor run.
 - The corrected policy and schema pass a clean local non-billable gate, but the original live validation hypothesis still requires a new controlled campaign. The three governed local sources were recovered after the required reset. The active restored Strategy has `capacity_status = unknown`, so no vendor run was started: unknown capacity must enter Needs attention and cannot legitimately produce an auto-qualified Lead.
 - Hosted Cron/Vault remains unconfigured. Earlier bounded Source Scout attempts against a custom Responses endpoint did not report or execute a hosted web-search call in a form the SDK could verify; those runs were correctly rejected and nothing was persisted. Later official-endpoint runs performed hosted search but omitted the optional raw search-source list, so deterministic citation validation rejected every proposal; source-list inclusion is now corrected, but a successful post-fix end-to-end live run is still pending.
@@ -103,5 +111,7 @@ YipYip is an autonomous lead engine. A workspace configures one editable Lead St
 - Qualification cost enforcement still evaluates a stage after its provider response, so a response can exceed the remaining envelope before continuation stops. Model-aware estimates and the three-call Research cap materially reduce this exposure, but a conservative preflight reservation remains future work. Historical workflow costs retain the estimator used when they ran and are not recalculated.
 
 ## Safest next work
+
+For the readiness slice, inspect the simulated label-first comparison first. Keep the flag off until controlled activation is separately chosen. Run the offline report, review coverage gaps, and collect independent YipYip labels on exact evaluations before proposing a policy/discovery change; do not lower delivery thresholds based on GPT judgments. This slice did not advance existing queued workflows.
 
 Restart the local development server so the worker loads atomic Signal persistence, then use Process live queue to resume the two already-queued resolve retries; do not queue replacement monitors. Inspect their resolution counts before allowing later qualification stages to consume provider budget. In an authenticated owner/reviewer session, verify one Needs-attention Resolve action before relying on it operationally. Keep hosted Cron/Vault disabled. A conservative preflight reservation remains the next cost-control improvement, and historical cost rows remain unchanged.

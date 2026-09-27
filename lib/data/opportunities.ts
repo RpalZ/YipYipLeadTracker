@@ -1,4 +1,6 @@
 import "server-only";
+import { readinessEnabled } from "@/lib/readiness-config";
+import type { ConversationReadinessInput, ConversationReadinessEvaluation, ReadinessView } from "@/lib/readiness";
 
 import type {
   CommercialFitView,
@@ -425,7 +427,34 @@ export async function getDashboardData({
       researchCoverageByOpportunity.set(finding.opportunity_id, coverage);
     }
 
+    const readinessByOpportunity = new Map<string, ReadinessView>();
+    let readinessNotice: string | undefined;
+    if (readinessEnabled() && opportunityIds.length) {
+      try {
+      const [evaluations, labels] = await Promise.all([
+        supabase.from("conversation_readiness_evaluations").select("*").in("opportunity_id", opportunityIds).order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1000),
+        supabase.from("conversation_readiness_labels").select("*").order("created_at", { ascending: false }).order("id", { ascending: false }).limit(1000),
+      ]);
+      if (evaluations.error || labels.error) readinessNotice = "load_failed";
+      else {
+        if (evaluations.data.length === 1000 || labels.data.length === 1000) readinessNotice = "truncated";
+        for (const row of evaluations.data) {
+          if (readinessByOpportunity.has(row.opportunity_id)) continue;
+          readinessByOpportunity.set(row.opportunity_id, {
+            id: row.id, assessmentId: row.assessment_id, createdAt: row.created_at,
+            evidenceAt: (row.provenance as { context?: { evaluatedAt?: string } })?.context?.evaluatedAt ?? row.created_at,
+            input: row.input_snapshot as unknown as ConversationReadinessInput | null,
+            result: row.result as unknown as ConversationReadinessEvaluation,
+            labels: labels.data.filter((label) => label.evaluation_id === row.id).map((label) => ({
+              id: label.id, reviewerId: label.reviewer_id, label: label.label as import("@/lib/readiness").ReadinessLabel["label"], reason: label.reason, notes: label.notes, createdAt: label.created_at,
+            })),
+          });
+        }
+      }
+      } catch { readinessNotice = "load_failed"; }
+    }
     return {
+      readinessEnabled: readinessEnabled(), readinessViewerId: authData.user.id, readinessNotice,
       opportunities: mapped.map((opportunity) => {
         const role = opportunity.workspaceId ? roles.get(opportunity.workspaceId) : undefined;
         const contactRoute = resolveActionableContactRoute(
@@ -446,6 +475,7 @@ export async function getDashboardData({
         const coverage = researchCoverageByOpportunity.get(opportunity.id);
         return {
           ...opportunity,
+          readiness: readinessByOpportunity.get(opportunity.id) ?? null,
           contactLabel: contactRoute.label ?? opportunity.contactLabel,
           contactStatus: contactRoute.supported ? contactRoute.status : opportunity.contactStatus,
           contactEvidenceUrls: contactRoute.sourceUrls,

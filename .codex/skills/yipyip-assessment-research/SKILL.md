@@ -13,6 +13,8 @@ Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, and the PRD sections on First Asses
 
 ## Preserve assessment and research invariants
 
+- Keep `conversation-readiness-v1` shadow-only. Read `docs/READINESS_EXPERIMENT.md` before changing it: no additional paid calls/passes, no delivery-routing changes, no favorable prose extraction from historical findings, and no organization-size-only budget proxy. Missing historical schema is not evaluated, not rejected.
+
 - Apply hard exclusions before weighted scoring and record dimension score, confidence, rationale, profile version, policy version, evidence snapshot, model, and prompt version.
 - Generate focused questions only for missing, weak, stale, inferred, or conflicting facts that could change a decision. Execute commercial, buyer-access, capability, timing, and other questions as separate bundles of at most three questions.
 - Prefer primary sources. Every new researched claim becomes a sourced ResearchFinding; copied Signal facts retain Signal provenance.

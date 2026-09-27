@@ -13,6 +13,8 @@ Read `AGENTS.md`, `docs/PROJECT_CONTEXT.md`, the PRD data schemas and provenance
 
 ## Data and authorization invariants
 
+- Readiness evaluations and feedback are independent immutable records, not Lead mutations. Preserve exact Assessment/workspace references, fingerprint idempotency, server-only evaluation inserts, owner/reviewer label attribution, prior-label and latest-assessment concurrency checks. Test fresh migrations in a disposable database rather than resetting populated evaluation data.
+
 - Preserve Signal, Opportunity, Assessment, ResearchFinding, and Lead boundaries; Leads reference canonical truth rather than duplicating it.
 - Scope all workspace data through explicit grants and RLS. Views exposed to application roles must enforce underlying RLS.
 - Keep privileged keys and clients server-only and use the narrowest deliberate function privileges.

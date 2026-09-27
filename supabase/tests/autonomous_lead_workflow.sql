@@ -867,4 +867,68 @@ begin
 end;
 $$;
 
+-- A retry is another attempt at the SAME research pass, not a new pass 1.
+-- Completing that retry must advance to pass 4 rather than collide with pass 2.
+reset role;
+set local role service_role;
+do $$
+declare
+  workflow uuid := gen_random_uuid();
+  stage_id uuid;
+  token uuid := gen_random_uuid();
+  retry public.automation_stage_runs%rowtype;
+begin
+  insert into public.automation_workflow_runs (
+    id, workspace_id, coverage_profile_id, kind, trigger_kind, idempotency_key, current_stage
+  ) values (
+    workflow, '5aaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', current_setting('test.strategy_id')::uuid,
+    'opportunity_qualification', 'retry', 'research-pass-retry-regression', 'research'
+  );
+  insert into public.automation_stage_runs (workspace_id, workflow_run_id, stage, pass, status)
+  select '5aaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', workflow, 'research', n, 'succeeded'
+  from generate_series(1, 2) n;
+  insert into public.automation_stage_runs (
+    workspace_id, workflow_run_id, stage, pass, status, lease_token, leased_by, leased_until, input_snapshot
+  ) values (
+    '5aaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', workflow, 'research', 3,
+    'running', token, 'regression-worker', now() + interval '1 minute', '{"bundle":"timing"}'
+  ) returning id into stage_id;
+
+  perform public.fail_automation_stage(stage_id, token, 'provider_output_schema', 'Synthetic failure', true);
+  select * into strict retry from public.automation_stage_runs where workflow_run_id = workflow and status = 'queued';
+  if retry.pass <> 3 or retry.attempt <> 2 or retry.input_snapshot <> '{"bundle":"timing"}'::jsonb then
+    raise exception 'retry lost its research pass, attempt, or input';
+  end if;
+  if retry.available_at <> now() + interval '2 minutes' then raise exception 'retry backoff changed'; end if;
+  begin
+    perform public.fail_automation_stage(stage_id, token, 'provider_output_schema', 'Duplicate failure callback', true);
+    raise exception 'duplicate failure callback accepted';
+  exception when serialization_failure then null;
+  end;
+
+  update public.automation_stage_runs set status = 'running', lease_token = token,
+    leased_by = 'regression-worker', leased_until = now() + interval '1 minute' where id = retry.id;
+  perform public.complete_automation_stage(retry.id, token, '{"next":"research"}', '{}', 0, 'research', null);
+  select * into strict retry from public.automation_stage_runs where workflow_run_id = workflow and status = 'queued';
+  if retry.pass <> 4 or retry.attempt <> 1 then raise exception 'completion failed to advance to research pass 4'; end if;
+
+  -- Four attempts remain the bound, independently for each pass.
+  for attempt_number in 1..4 loop
+    update public.automation_stage_runs set status = 'running', lease_token = token,
+      leased_by = 'regression-worker', leased_until = now() + interval '1 minute' where id = retry.id;
+    perform public.fail_automation_stage(retry.id, token, 'timeout', 'Synthetic timeout', true);
+    if attempt_number < 4 then
+      select * into strict retry from public.automation_stage_runs where workflow_run_id = workflow and status = 'queued';
+      if retry.pass <> 4 or retry.attempt <> attempt_number + 1 then raise exception 'repeated retry changed pass'; end if;
+    end if;
+  end loop;
+  if exists(select 1 from public.automation_stage_runs where workflow_run_id = workflow and status = 'queued')
+    or (select status from public.automation_workflow_runs where id = workflow) <> 'failed'
+  then raise exception 'attempt limit did not stop retries'; end if;
+  if has_function_privilege('authenticated', 'public.fail_automation_stage(uuid,uuid,text,text,boolean)', 'execute')
+    or has_function_privilege('anon', 'public.fail_automation_stage(uuid,uuid,text,text,boolean)', 'execute')
+  then raise exception 'failure RPC is no longer service-only'; end if;
+end;
+$$;
+
 rollback;

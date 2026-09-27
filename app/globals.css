@@ -504,7 +504,7 @@ summary:focus-visible {
 .drawer-section:last-child { border-bottom: 0; }
 .drawer-section h3 { margin: 0 0 14px; font-size: 24px; letter-spacing: -.035em; }
 .drawer-section > p { max-width: 900px; margin: 0; font-size: 16px; line-height: 1.75; }
-.next-step { margin-top: 24px; padding: 18px 20px; border-left: 4px solid var(--teal); background: var(--teal-soft); }
+.next-step { margin-top: 24px; padding: 18px 20px; border: 1px solid var(--line); background: var(--teal-soft); }
 .next-step p { margin: 7px 0 0; font-size: 15px; line-height: 1.65; }
 .open-questions ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
 .open-questions li { padding: 13px 15px; border: 1px solid var(--line); border-radius: 6px; font-size: 14px; }
@@ -1065,6 +1065,8 @@ summary:focus-visible {
 .approved-source-list dt { color: var(--muted); font-size: 12px; text-transform: uppercase; }
 .approved-source-list dd { margin: 4px 0 0; font-size: 13px; text-transform: capitalize; overflow-wrap: anywhere; }
 .activity-list { margin-top: 18px; border-top: 1px solid var(--line); }
+.source-history-scroll { min-width: 0; max-height: min(28rem, 60vh); overflow-y: auto; overscroll-behavior-y: contain; scrollbar-gutter: stable; overflow-wrap: anywhere; padding: 4px; }
+.source-history-scroll:focus-visible { outline: 2px solid var(--teal); outline-offset: 3px; border-radius: 4px; }
 .activity-list article { min-width: 0; min-height: 66px; padding: 13px 4px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 14px; }
 .activity-status { width: 9px; height: 9px; border-radius: 50%; background: #99a39f; }
 .activity-status.running, .activity-status.queued { background: #2b7188; box-shadow: 0 0 0 5px rgba(43,113,136,.1); }
@@ -1409,3 +1411,26 @@ summary:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   body { transition: none; }
 }
+/* Shadow comparison extends the existing reading surface without animated panels. */
+.readiness-toggle { margin-block: 1rem; }
+.readiness-experiment { max-width: 76rem; margin-inline: auto; overflow-wrap: anywhere; }
+.readiness-experiment > p, .readiness-case > p { max-width: 72ch; line-height: 1.7; }
+.readiness-experiment h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); }
+.readiness-experiment h2 { font-size: 1.5rem; margin-block: .5rem 1rem; }
+.readiness-experiment h3 { font-size: 1.125rem; margin-block: 1.5rem .5rem; }
+.readiness-case { padding-block: 2rem; border-top: 1px solid var(--line); }
+.readiness-case details { margin-block: 1rem; }
+.readiness-case summary { cursor: pointer; padding-block: .5rem; }
+.readiness-case ul { padding-inline-start: 1.5rem; }
+.readiness-case li { margin-block: .5rem; }
+.readiness-blind { display: flex; align-items: center; gap: .75rem; margin-block: 1.5rem .5rem; }
+.readiness-blind input { width: 1.2rem; height: 1.2rem; flex: none; }
+.readiness-metrics, .readiness-comparison { display: flex; flex-wrap: wrap; gap: 1rem 2rem; margin-block: 1.5rem; }
+.readiness-metrics dd, .readiness-comparison dd { margin: .5rem 0 0; font-size: 1.125rem; font-weight: 700; }
+.readiness-label-form { margin-block: 1.5rem; }
+.readiness-label-form fieldset { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; padding: 1rem; min-width: 0; border: 1px solid var(--line); }
+.readiness-label-form label { display: grid; gap: .5rem; min-width: 0; }
+.readiness-label-form select, .readiness-label-form textarea { width: 100%; min-width: 0; padding: .75rem; font: inherit; background: var(--input); color: var(--ink); border: 1px solid var(--line); border-radius: .5rem; }
+.readiness-wide { grid-column: 1 / -1; }
+.readiness-label-form button { justify-self: start; }
+@media (max-width: 650px) { .readiness-label-form fieldset { grid-template-columns: minmax(0, 1fr); } }

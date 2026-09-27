@@ -55,6 +55,7 @@ export interface EvidenceItem {
 }
 
 export interface OpportunityView {
+  readiness?: import("./readiness").ReadinessView | null;
   id: string;
   workspaceId?: string;
   organization: string;
@@ -333,6 +334,9 @@ export interface AutomationException {
 }
 
 export interface DashboardData {
+  readinessEnabled?: boolean;
+  readinessViewerId?: string;
+  readinessNotice?: string;
   opportunities: OpportunityView[];
   mode: "demo" | "supabase";
   demoMode?: "empty" | "sample";

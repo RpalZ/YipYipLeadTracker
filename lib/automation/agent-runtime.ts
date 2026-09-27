@@ -1,10 +1,13 @@
 import "server-only";
+import { readinessEnabled } from "@/lib/readiness-config";
+import { READINESS_AGENT_INSTRUCTIONS, READINESS_SCOPE_INSTRUCTIONS } from "@/lib/readiness";
 
 import { Agent, OpenAIProvider, Runner, setTracingDisabled, webSearchTool } from "@openai/agents";
 import type { ZodType } from "zod";
 
 import {
   automatedAssessmentOutputSchema,
+  shadowAssessmentOutputSchema,
   gapAnalysisOutputSchema,
   researchOutputSchema,
   sourceScoutWireOutputSchema,
@@ -268,11 +271,11 @@ export function runAssessmentAgent(
   const final = phase === "final";
   return execute<AutomatedAssessmentOutput>({
     name: "YipYip Opportunity Assessor",
-    promptVersion: final ? "final-assessment-v3-original-brief" : "first-assessment-v3-original-brief",
+    promptVersion: `${final ? "final-assessment-v3-original-brief" : "first-assessment-v3-original-brief"}${readinessEnabled() ? "/readiness-v1" : ""}`,
     webSearch: false,
-    outputType: automatedAssessmentOutputSchema,
+    outputType: readinessEnabled() ? shadowAssessmentOutputSchema : automatedAssessmentOutputSchema,
     instructions: `Assess only the supplied, citation-valid evidence against the supplied Lead Strategy. Score every configured dimension from 0 to 10 with separate confidence and concise evidence references. Classify sector, capability fit, and actionability explicitly. For capability fit, list the configured YipYip services that match in matchedServices and list concrete project requirements that are unsupported or still unclear in unmatchedRequirements. Do not confuse capability fit with the Lead Strategy's delivery-capacity status. Unknown evidence must reduce confidence rather than be invented. Apply hard exclusions explicitly but do not make the final routing decision. Separate the total procurement or programme value from the portion realistically addressable by YipYip: a whole-procurement value is never the addressable value without evidence of a dedicated package or explicit lot. Use evidence identifiers or cited finding URLs supplied in the prompt. Budget fit and delivery fit are non-linear: work can be too small, suitable, partner-dependent, or too large. Commercial access is not win probability. ${final ? "Create an evidence-grounded outreach snapshot in Dutch for Dutch-language opportunities and English otherwise. Keep the email body at 120 words or fewer and call opening at 60 words or fewer; include no unsupported claim and cite the supporting evidence references." : "Set outreachDraft to null; outreach is generated only from the final evidence snapshot."}`,
-    prompt: `Lead Strategy:\n${JSON.stringify(strategy)}\nOpportunity:\n${JSON.stringify(opportunity)}\nAccepted research findings:\n${JSON.stringify(findings)}`,
+    prompt: `Lead Strategy:\n${JSON.stringify(strategy)}\nOpportunity:\n${JSON.stringify(opportunity)}\nAccepted research findings:\n${JSON.stringify(findings)}${readinessEnabled() ? `\n${READINESS_AGENT_INSTRUCTIONS}\n${READINESS_SCOPE_INSTRUCTIONS}` : ""}`,
   });
 }
 

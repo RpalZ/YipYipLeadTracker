@@ -28,6 +28,9 @@ const nodes = [
   { id: "basket-add", x: 1400, y: 245, w: 190, h: 92, label: "Add to\nreview basket", state: "verified" },
   { id: "basket", x: 1630, y: 222, w: 205, h: 138, label: "Pursuit workspace\n/reviewed\nautomatic · manual\nworking · research · passed", state: "verified", fontSize: 13 },
   { id: "review-mutation", x: 1630, y: 425, w: 205, h: 86, label: "Persistent review\npursue · pass · research\nroute + history", state: "verified", fontSize: 13 },
+  { id: "shadow", x: 540, y: 435, w: 290, h: 106, label: "SHADOW EXPERIMENT · OFF\nFinal evidence / offline replay\nconversation readiness\nnever changes qualification", state: "contract", fontSize: 13 },
+  { id: "labels", x: 900, y: 435, w: 290, h: 106, label: "Label first · owner/reviewer\nworth contacting / monitor / pass\ninsufficient evidence\nappend-only · no pursuit actions", state: "contract", fontSize: 13 },
+  { id: "compare", x: 1260, y: 435, w: 260, h: 106, label: "Compare disagreements\ncoverage + missed conversations\nmissing fields ≠ rejection\nno paid historical rerun", state: "contract", fontSize: 13 },
 
   { id: "strategy", x: 60, y: 690, w: 210, h: 112, label: "Editable Lead Strategy\ncapability · sectors\nbudget · capacity", state: "verified", fontSize: 14 },
   { id: "scout", x: 310, y: 690, w: 210, h: 112, label: "Source Scout\nproposes reputable\nsources", state: "verified", fontSize: 15 },
@@ -47,6 +50,8 @@ const nodes = [
 ];
 
 const edges = [
+  { from: "shadow", to: "labels" },
+  { from: "labels", to: "compare" },
   { from: "open", to: "filter" },
   { from: "filter", to: "scan" },
   { from: "scan", to: "select" },

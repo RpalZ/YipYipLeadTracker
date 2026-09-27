@@ -383,6 +383,114 @@ export type Database = {
           },
         ]
       }
+      conversation_readiness_evaluations: {
+        Row: {
+          assessment_id: string
+          created_at: string
+          id: string
+          input_fingerprint: string
+          input_snapshot: Json | null
+          opportunity_id: string
+          policy_version: string
+          provenance: Json
+          result: Json
+          workspace_id: string
+        }
+        Insert: {
+          assessment_id: string
+          created_at?: string
+          id?: string
+          input_fingerprint: string
+          input_snapshot?: Json | null
+          opportunity_id: string
+          policy_version: string
+          provenance: Json
+          result: Json
+          workspace_id: string
+        }
+        Update: {
+          assessment_id?: string
+          created_at?: string
+          id?: string
+          input_fingerprint?: string
+          input_snapshot?: Json | null
+          opportunity_id?: string
+          policy_version?: string
+          provenance?: Json
+          result?: Json
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_readiness_evalua_workspace_id_opportunity_id__fkey"
+            columns: ["workspace_id", "opportunity_id", "assessment_id"]
+            isOneToOne: false
+            referencedRelation: "assessments"
+            referencedColumns: ["workspace_id", "opportunity_id", "id"]
+          },
+          {
+            foreignKeyName: "conversation_readiness_evaluations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversation_readiness_labels: {
+        Row: {
+          created_at: string
+          evaluation_id: string
+          id: string
+          idempotency_key: string
+          label: string
+          notes: string | null
+          reason: string
+          replaces_id: string | null
+          reviewer_id: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          evaluation_id: string
+          id?: string
+          idempotency_key: string
+          label: string
+          notes?: string | null
+          reason: string
+          replaces_id?: string | null
+          reviewer_id: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          evaluation_id?: string
+          id?: string
+          idempotency_key?: string
+          label?: string
+          notes?: string | null
+          reason?: string
+          replaces_id?: string | null
+          reviewer_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversation_readiness_labels_replaces_id_fkey"
+            columns: ["replaces_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_readiness_labels"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "conversation_readiness_labels_workspace_id_evaluation_id_fkey"
+            columns: ["workspace_id", "evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "conversation_readiness_evaluations"
+            referencedColumns: ["workspace_id", "id"]
+          },
+        ]
+      }
       coverage_profile_source_packs: {
         Row: {
           configuration_overrides: Json
@@ -2291,6 +2399,17 @@ export type Database = {
           p_run_id: string
         }
         Returns: undefined
+      }
+      label_conversation_readiness: {
+        Args: {
+          p_evaluation_id: string
+          p_expected_label_id?: string
+          p_idempotency_key: string
+          p_label: string
+          p_notes: string
+          p_reason: string
+        }
+        Returns: string
       }
       persist_automation_signal: {
         Args: { p_signal: Json; p_source_id: string; p_workspace_id: string }

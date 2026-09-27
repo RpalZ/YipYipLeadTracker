@@ -5,6 +5,8 @@ description: Test, review, or report YipYip PRD acceptance, evaluation quality, 
 
 # YipYip QA and Reliability
 
+For shadow readiness evaluation, compare exact assessment/evidence versions and report schema coverage separately from business outcomes. Exclude unlabeled cases, abstentions and stale evaluations from agreement; never treat GPT labels as independent human truth. Verify unchanged normal qualification/intake and no provider/workflow calls in offline replay.
+
 Provide independent evidence about product behavior and release risk.
 
 ## Build the test surface

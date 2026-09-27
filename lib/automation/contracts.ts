@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { dimensionNames } from "@/lib/domain";
+import { readinessWireSchema } from "@/lib/readiness";
 
 export const automationStages = [
   "source_scout",
@@ -166,6 +167,8 @@ export const automatedAssessmentOutputSchema = z.object({
   outreachDraft: outreachDraftSchema.nullable(),
 }).strict();
 
+export const shadowAssessmentOutputSchema = automatedAssessmentOutputSchema.extend({ conversationReadiness: readinessWireSchema });
+
 export const gapQuestionSchema = z.object({
   field: shortText(100),
   question: shortText(400),
@@ -203,7 +206,7 @@ export const researchOutputSchema = z.object({
 export type SourceProposal = z.infer<typeof sourceProposalSchema>;
 export type SourceScoutOutput = z.infer<typeof sourceScoutOutputSchema>;
 export type SourceScoutWireOutput = z.infer<typeof sourceScoutWireOutputSchema>;
-export type AutomatedAssessmentOutput = z.infer<typeof automatedAssessmentOutputSchema>;
+export type AutomatedAssessmentOutput = z.infer<typeof automatedAssessmentOutputSchema> & { conversationReadiness?: unknown };
 export type QualificationEvidence = z.infer<typeof qualificationEvidenceSchema>;
 export type OutreachDraft = z.infer<typeof outreachDraftSchema>;
 export type GapQuestion = z.infer<typeof gapQuestionSchema>;

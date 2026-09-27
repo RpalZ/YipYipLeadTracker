@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { buyingIntentWireSchema } from "@/lib/readiness";
 
 export const DISCOVERY_POLICY_VERSION = "discovery-validation-v3-entity-specificity";
 export const DISCOVERY_PROMPT_VERSION = "yipyip-discovery-v3-entity-specificity";
@@ -51,8 +52,9 @@ export const discoveryAgentOutputSchema = z.object({
     .describe("A concise operational reason when candidates is empty; otherwise null."),
 }).strict();
 
-export type DiscoveryCandidate = z.infer<typeof discoveryCandidateSchema>;
-export type DiscoveryAgentOutput = z.infer<typeof discoveryAgentOutputSchema>;
+export const shadowDiscoveryOutputSchema = discoveryAgentOutputSchema.extend({ candidates: z.array(discoveryCandidateSchema.extend({ buyingIntent: buyingIntentWireSchema })).max(DEFAULT_DISCOVERY_LIMITS.maxCandidates) });
+export type DiscoveryCandidate = z.infer<typeof discoveryCandidateSchema> & { buyingIntent?: unknown };
+export type DiscoveryAgentOutput = Omit<z.infer<typeof discoveryAgentOutputSchema>, "candidates"> & { candidates: DiscoveryCandidate[] };
 
 export type DiscoveryRejectionReason =
   | "uncited_url"

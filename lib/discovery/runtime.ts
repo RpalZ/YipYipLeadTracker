@@ -1,4 +1,6 @@
 import "server-only";
+import { readinessEnabled } from "@/lib/readiness-config";
+import { buyingIntentSchema } from "@/lib/readiness";
 
 import { Agent, OpenAIProvider, Runner, setTracingDisabled, webSearchTool } from "@openai/agents";
 
@@ -7,6 +9,7 @@ import {
   DEFAULT_DISCOVERY_MODEL,
   DISCOVERY_PROMPT_VERSION,
   discoveryAgentOutputSchema,
+  shadowDiscoveryOutputSchema,
   type DiscoveryAgentOutput,
   type DiscoveryProfileCriteria,
 } from "@/lib/discovery/contracts";
@@ -101,10 +104,10 @@ export async function runDiscoveryAgent({
 
   const agent = new Agent({
     name: "YipYip Opportunity Discovery",
-    instructions: `${buildDiscoveryInstructions(profile, Math.max(1, Math.min(DEFAULT_DISCOVERY_LIMITS.maxCandidates, maxCandidates)))}${source ? `\n\nThis is a source-scoped monitor. Search ${source.name} at ${source.baseUrl} and use that source as the canonical evidence origin. Use several relevant query angles within the configured source instead of requiring one page to contain every qualification fact. Do not broaden into an unrestricted general search.` : ""}`,
+    instructions: `${buildDiscoveryInstructions(profile, Math.max(1, Math.min(DEFAULT_DISCOVERY_LIMITS.maxCandidates, maxCandidates)))}${source ? `\n\nThis is a source-scoped monitor. Search ${source.name} at ${source.baseUrl} and use that source as the canonical evidence origin. Use several relevant query angles within the configured source instead of requiring one page to contain every qualification fact. Do not broaden into an unrestricted general search.` : ""}${readinessEnabled() ? "\nFor shadow analysis only, classify buyingIntent as external_demand, unknown, assigned_or_internal, or no_new_software with confidence, citation URLs in evidenceRefs, and rationale. Do not filter otherwise valid signals merely because buying intent is unknown. assigned_or_internal means no evidenced external opening for the relevant scope. Return null if unsupported." : ""}`,
     model,
     tools: [webSearchTool({ searchContextSize: "low", userLocation: { type: "approximate", country: "NL" } })],
-    outputType: discoveryAgentOutputSchema,
+    outputType: readinessEnabled() ? shadowDiscoveryOutputSchema : discoveryAgentOutputSchema,
     modelSettings: {
       reasoning: { effort: "low", summary: null },
       // Responses counts reasoning tokens inside max_output_tokens. The larger
@@ -176,7 +179,13 @@ export async function runDiscoveryAgent({
     });
 
     return {
-      output: result.finalOutput,
+      output: { ...result.finalOutput, candidates: result.finalOutput.candidates.map((candidate) => {
+        const raw = "buyingIntent" in candidate ? candidate.buyingIntent : null;
+        const parsed = buyingIntentSchema.safeParse(raw);
+        const valid = parsed.success && parsed.data.evidenceRefs.every((ref) => consultedUrls.includes(ref))
+          && (parsed.data.status === "unknown" || (parsed.data.confidence >= 0.65 && parsed.data.evidenceRefs.length > 0 && Boolean(parsed.data.rationale.trim())));
+        return { ...candidate, ...(readinessEnabled() ? { buyingIntent: valid ? parsed.data : null } : {}) };
+      }) },
       consultedUrls,
       searchQueries: [...new Set([...providerQueries, ...result.finalOutput.searchQueries])],
       webSearchCallCount,
@@ -188,7 +197,7 @@ export async function runDiscoveryAgent({
       costEnvelopeExceeded: estimatedCostEur > DEFAULT_DISCOVERY_LIMITS.estimatedCostEur,
       durationMs: Math.round(performance.now() - startedAt),
       model,
-      promptVersion: DISCOVERY_PROMPT_VERSION,
+      promptVersion: `${DISCOVERY_PROMPT_VERSION}${readinessEnabled() ? "/buying-intent-v1" : ""}`,
       pricingVersion: OPENAI_PRICING_VERSION,
       usdToEurRate,
     };

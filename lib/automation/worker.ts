@@ -1,4 +1,7 @@
 import "server-only";
+import { readinessEnabled } from "@/lib/readiness-config";
+import { buildReadinessSnapshot } from "@/lib/readiness-snapshot";
+import { buyingIntentSchema } from "@/lib/readiness";
 
 import { randomUUID } from "node:crypto";
 
@@ -326,6 +329,7 @@ async function persistAssessment(
       model: telemetry.model,
       promptVersion: telemetry.promptVersion,
       strategyVersion,
+      ...(readinessEnabled() ? { readinessEvidenceRefs: allowedEvidenceRefs } : {}),
       capacity: {
         status: strategy.capacityStatus,
         effectiveUntil: strategy.capacityEffectiveUntil,
@@ -333,8 +337,30 @@ async function persistAssessment(
       usage: usageOf(telemetry),
     },
     assessed_by: null,
-  }).select("id").single();
+  }).select("id,created_at").single();
   if (inserted.error) throw inserted.error;
+  if (phase === "final" && readinessEnabled()) {
+    // Shadow writes are isolated: failure cannot reroute or fail qualification.
+    try {
+      const snapshot = buildReadinessSnapshot(assessment.conversationReadiness, {
+        allowedEvidenceRefs, minimumBudgetEur: policy.commercial.minimumProjectBudgetEur,
+        evaluatedAt: inserted.data.created_at, hardRejection: route.qualificationChecks.hardRejection,
+      });
+      const shadow = await admin.from("conversation_readiness_evaluations").upsert({
+        workspace_id: workflow.workspace_id, opportunity_id: workflow.opportunity_id,
+        assessment_id: inserted.data.id, policy_version: snapshot.result.policyVersion,
+        input_fingerprint: snapshot.fingerprint, input_snapshot: snapshot.input as unknown as Json,
+        result: snapshot.result as unknown as Json,
+        provenance: { source: "final_assessment", context: snapshot.context } as unknown as Json,
+      }, { onConflict: "assessment_id,input_fingerprint,policy_version", ignoreDuplicates: true });
+      writeAutomationLog(shadow.error ? "warn" : "info", "readiness.evaluated", {
+        assessmentId: inserted.data.id, status: snapshot.result.status,
+        reasons: snapshot.result.reasons, ...(shadow.error ? { errorCode: shadow.error.code } : {}),
+      });
+    } catch {
+      writeAutomationLog("warn", "readiness.persistence_failed", { assessmentId: inserted.data.id });
+    }
+  }
   return { route, assessment: validatedAssessment, assessmentId: inserted.data.id, contactRoute };
 }
 
@@ -470,6 +496,7 @@ async function resolveCandidates(admin: AdminClient, workflow: WorkflowRow, resu
           sectorCategories: candidate.sectorCategories,
           actionabilityStatus: candidate.actionabilityStatus,
           actionableUntil: candidate.actionableUntil,
+          ...(buyingIntentSchema.safeParse(candidate.buyingIntent).success ? { buyingIntent: candidate.buyingIntent as Json } : {}),
         },
         extractedInferences: {
           inferences: candidate.inferences,
